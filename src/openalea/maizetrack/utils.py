@@ -141,3 +141,21 @@ def simplify(pl, n):
         return np.array([quantile_point(pl, q) for q in np.linspace(0, 1, n)])
 
 
+######
+### USED ? ###
+##############
+
+
+def best_leaf_angles(leaf, shooting_frame, angles, n=1):
+    pl = leaf.real_longest_polyline()
+
+    surfaces = dict()
+    for angle in angles:
+        pl2d = phm3d_to_px2d(pl, shooting_frame, angle)
+        x, y = pl2d[:, 0], pl2d[:, 1]
+        surfaces[angle] = (max(x) - min(x)) * (max(y) - min(y))
+
+    sorted_surfaces = dict(sorted(surfaces.items(), key=lambda item: item[1], reverse=True))
+
+    return list(sorted_surfaces.keys())[:n]
+
