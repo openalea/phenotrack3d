@@ -1,6 +1,6 @@
 from openalea.maizetrack.data_loading import get_metainfos_ZA17, metainfos_to_paths, check_existence
-from openalea.phenotracking.maize_track.alignment import tracking
-from openalea.phenotracking.maize_track.rank_annotation import annotate
+from openalea.maizetrack.alignment import tracking
+from openalea.maizetrack.rank_annotation import annotate
 
 plantid = 1424
 

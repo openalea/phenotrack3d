@@ -1,9 +1,9 @@
-from cereals.example.skeleton_2D import best_leaf_angles
-from openalea.phenotracking.maize_track.data_loading import metainfos_to_paths, get_metainfos_ZA17, load_plant, get_rgb
-from openalea.phenotracking.maize_track.utils import phm3d_to_px2d, shooting_frame_conversion, rgb_and_polylines
+from openalea.maizetrack.utils import best_leaf_angles
+from openalea.maizetrack.data_loading import metainfos_to_paths, get_metainfos_ZA17, load_plant, get_rgb
+from openalea.maizetrack.utils import phm3d_to_px2d, shooting_frame_conversion, rgb_and_polylines
 #from openalea.phenotracking.test_maize_track.plant_align import simplify, TrackedSnapshot
-from openalea.phenotracking.maize_track.compute_vmsi import compute_vmsi
-from openalea.phenotracking.maize_track.stem_correction import savgol_smoothing_function
+from openalea.maizetrack.compute_vmsi import compute_vmsi
+from openalea.maizetrack.stem_correction import savgol_smoothing_function
 
 
 

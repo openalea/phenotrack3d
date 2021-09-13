@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from openalea.phenotracking.maize_track.utils import rgb_and_polylines
+from openalea.maizetrack.utils import rgb_and_polylines
 
 
 class Interface:

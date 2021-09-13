@@ -2,7 +2,7 @@ import numpy as np
 from copy import deepcopy
 from scipy.spatial.distance import directed_hausdorff
 
-from openalea.phenotracking.maize_track.utils import quantile_point
+from openalea.maizetrack.utils import quantile_point
 
 
 # def empty(row):
