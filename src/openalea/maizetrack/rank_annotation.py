@@ -1,3 +1,7 @@
+"""
+A cv2 interface to annotate leaf ranks on phenomenal objects, in order to evaluate tracking performance.
+"""
+
 import cv2
 import numpy as np
 
@@ -33,7 +37,6 @@ class Interface:
                 if y_bt < y < y_bt + s and x_bt < x < x_bt + s:
                     self.current_button = button_name
 
-
     def reset_click(self):
 
         self.click = False
@@ -58,7 +61,6 @@ class Interface:
         cv2.imshow(self.window_name, img_rs.astype(np.uint8))
 
 
-
 def annotate(plant, init=True):
 
     interface = Interface()
@@ -71,6 +73,9 @@ def annotate(plant, init=True):
             print(angle)
             plant.load_images(angle)
         print('images loaded')
+
+    if plant.snapshots[-1].leaves[-1].real_pl == ():
+        plant.simplify_polylines()
 
     # start annotation from alignment result
     if init:

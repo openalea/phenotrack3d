@@ -6,7 +6,7 @@ from alinea.phenoarch.shooting_frame import get_shooting_frame
 ################
 # NOT USED #####
 ################
-from openalea.phenotracking.maize_track.phenomenal_display import PALETTE
+from openalea.maizetrack.phenomenal_display import PALETTE
 
 
 def shooting_frame_conversion(s_frame_name):
@@ -72,7 +72,10 @@ def rgb_and_polylines(snapshot, angle, selected=None, ranks=None):
     # plot leaves
     for i, (pl, c, mature) in enumerate(zip(polylines_px, ranks, matures)):
 
-        col = [int(x) for x in PALETTE[c]]
+        if c == -2:
+            col = [0, 0, 0]
+        else:
+            col = [int(x) for x in PALETTE[c]]
 
         # unknown rank vs known rank
         if c == -1:
