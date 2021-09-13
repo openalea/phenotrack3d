@@ -436,7 +436,6 @@ class TrackedPlant:
                          loop=0)
 
     def save_tracking(self, path):
-        """ 13/09 """
 
         res = dict()
         res['snapshot_ref'] = [int(n) for n in self.snapshot_ref]
