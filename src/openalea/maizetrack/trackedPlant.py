@@ -444,6 +444,17 @@ class TrackedPlant:
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(res, f, ensure_ascii=False, indent=4)
 
+    def vmsi_output(self):
+
+        res = []
+        for snapshot in self.snapshots:
+            ranks = snapshot.get_ranks()
+            for leaf, rank in zip(snapshot.leaves, ranks):
+                leaf.info['pm_leaf_number'] = rank + 1
+            res.append(snapshot)
+
+        return res
+
 
 def show_alignment_score(trackedplant, dt=3, only_score=False):
 
