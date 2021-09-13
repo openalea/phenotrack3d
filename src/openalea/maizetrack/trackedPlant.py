@@ -5,10 +5,10 @@ import pandas as pd
 from PIL import Image
 from matplotlib import pyplot as plt
 
-from openalea.phenotracking.maize_track.alignment import multi_alignment, detect_abnormal_ranks, polylines_distance
+from openalea.maizetrack.alignment import multi_alignment, detect_abnormal_ranks, polylines_distance
 
-from openalea.phenotracking.maize_track.utils import simplify, rgb_and_polylines, polyline_until_z
-from openalea.phenotracking.maize_track.phenomenal_display import plot_leaves
+from openalea.maizetrack.utils import simplify, rgb_and_polylines, polyline_until_z
+from openalea.maizetrack.phenomenal_display import plot_leaves
 from openalea.maizetrack.stem_correction import abnormal_stem
 from openalea.maizetrack.data_loading import load_plant, missing_data, get_rgb
 

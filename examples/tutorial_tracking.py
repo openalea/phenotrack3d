@@ -4,9 +4,9 @@ Main tutorial for maize tracking pipeline
 
 import copy
 from openalea.maizetrack.data_loading import get_metainfos_ZA17, metainfos_to_paths, check_existence
-from openalea.phenotracking.maize_track.trackedPlant import TrackedPlant, align_growing
+from openalea.maizetrack.trackedPlant import TrackedPlant, align_growing
 
-from openalea.phenotracking.maize_track.alignment import multi_alignment, detect_abnormal_ranks
+from openalea.maizetrack.alignment import multi_alignment, detect_abnormal_ranks
 
 # [16, 672, 709, 876, 911, 948, 995, 1014, 1127]
 # [17, 30, 557, 566, 567, 586, 603, 613, 796, 1019, 1057, 1083]
@@ -45,7 +45,7 @@ TEST_SET = [1276, 948, 803, 931, 827, 1424, 1435, 479, 449, 318, 348, 1266, 705,
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from openalea.phenotracking.maize_track.utils import phm3d_to_px2d
+from openalea.maizetrack.utils import phm3d_to_px2d
 from openalea.maizetrack.data_loading import get_rgb
 import json
 

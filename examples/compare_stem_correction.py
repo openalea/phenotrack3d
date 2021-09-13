@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from openalea.maizetrack.data_loading import get_metainfos_ZA17, metainfos_to_paths, check_existence, load_plant, missing_data
 from openalea.maizetrack.stem_correction import abnormal_stem, ear_anomaly, smoothing_function, savgol_smoothing_function
-from openalea.phenotracking.maize_track.utils import phm3d_to_px2d
+from openalea.maizetrack.utils import phm3d_to_px2d
 
 TEST_SET = [348, 1301, 832, 1276, 1383, 1424, 940, 1270, 931, 925, 474, 794, 1283, 330, 1421,
             907, 316, 1284, 336, 439, 959, 915, 1316, 1434, 905, 313, 1391, 461, 424, 329, 784, 1398, 823, 1402,
