@@ -2,6 +2,8 @@ from openalea.maizetrack.data_loading import get_metainfos_ZA17, metainfos_to_pa
 from openalea.maizetrack.alignment import tracking
 from openalea.maizetrack.rank_annotation import annotate
 
+# test
+
 plantid = 1424
 
 save_result = False
