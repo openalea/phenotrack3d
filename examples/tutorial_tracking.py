@@ -3,7 +3,7 @@ Main tutorial for maize tracking pipeline
 '''
 
 import copy
-from openalea.maizetrack.data_loading import get_metainfos_ZA17, metainfos_to_paths, check_existence
+from openalea.maizetrack.data_loading import get_metainfos_ZA17, metainfos_to_paths, check_existence, load_plant
 from openalea.maizetrack.trackedPlant import TrackedPlant, align_growing
 
 from openalea.maizetrack.alignment import multi_alignment, detect_abnormal_ranks
@@ -70,7 +70,13 @@ for plantid in plantids:
 
     paths = metainfos_to_paths(metainfos, stem_smoothing=True, phm_parameters=(4, 1, 'notop', 4, 100), old=False)
     metainfos, paths = check_existence(metainfos, paths)
-    plant_ref = TrackedPlant.load_and_check(metainfos, paths)
+
+    # load vmsi objects, and associate them to their metainfo
+    print('Loading vmsi objects ...')
+    vmsi_list = load_plant(metainfos, paths)
+    print('vmsi found for {}/{} metainfos'.format(len(vmsi_list), len(metainfos)))
+
+    plant_ref = TrackedPlant.load_and_check(vmsi_list)
 
     print('creating copy')
     plant = copy.deepcopy(plant_ref)

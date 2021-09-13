@@ -175,21 +175,17 @@ class TrackedPlant:
                 leaf.real_pl = simplify(leaf.real_longest_polyline(), 50)
 
     @staticmethod
-    def load_and_check(metainfos, paths, path_result=None, check_stem=True):
+    def load_and_check(vmsi_list, path_result=None, check_stem=True):
+        """ Update 13/09 : takes list of vmsi as input, each vmsi having a metainfo attribute"""
 
         # TODO : arg json=None, ou on peut donner le json qui contient 3 infos : ref_time, ref_order, orders=M
-
-        # load vmsi objects, and associate them to their metainfo
-        print('Loading vmsi objects ...')
-        vmsi_list = load_plant(metainfos, paths)
-        print('vmsi found for {}/{} metainfos'.format(len(vmsi_list), len(metainfos)))
 
         # sort vmsi objects by time
         timestamps = [vmsi.metainfo.timestamp for vmsi in vmsi_list]
         order = sorted(range(len(timestamps)), key=lambda k: timestamps[k])
         vmsi_list = [vmsi_list[i] for i in order]
 
-        plantid = int(metainfos[0].plant[:4])
+        plantid = int(vmsi_list[0].metainfo.plant[:4])
 
         if path_result is None:
 
