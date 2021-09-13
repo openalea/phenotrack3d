@@ -146,3 +146,28 @@ def smoothing_function(x, y, dy=None, dw=4, polyorder=2, repet=2):
     return f, x_max
 
 
+def stem_height_smoothing(t, y, neighbours=3, threshold=0.05):
+    """
+    (Tested on deepcollars outputs)
+    """
+
+    # anomaly detection
+    i_anomaly = []
+    for i in range(len(y)):
+        # check if y[i] is too high compared to the next neighbours
+        y_ngb = np.array(y[(i + 1):(i + 1 + neighbours)])
+        if len(y_ngb) == neighbours and all([y[i] > val for val in y_ngb]) and np.mean(y[i] - y_ngb) / y[i] > threshold:
+            i_anomaly.append(i)
+        # check if y[i] is too low compared to the previous neighbours
+        y_ngb = np.array(y[(i - neighbours):i])
+        if len(y_ngb) == neighbours and all([y[i] < val for val in y_ngb]) and np.mean(y_ngb - y[i]) / np.mean(y_ngb) > threshold:
+            i_anomaly.append(i)
+
+    # anomaly removing
+    t2 = [val for i, val in enumerate(t) if i not in i_anomaly]
+    y2 = [val for i, val in enumerate(y) if i not in i_anomaly]
+
+    # smoothing
+    f, _ = smoothing_function(t2, y2, dw=6, repet=3)
+    f2 = lambda x: float(min(f(x), max(y2)))
+    return f2

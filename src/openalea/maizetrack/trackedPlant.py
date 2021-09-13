@@ -236,19 +236,35 @@ class TrackedPlant:
             snapshot.image[angle], _ = get_rgb(metainfo=snapshot.metainfo, angle=angle)
 
     def load_rank_annotation(self):
-        # if annotation is not found for a given task, it keeps its default value : anot = [-1] * len(leaves)
+        """
+        Load rank annotation for each leaf of each snapshot (-2 = not annotated, -1 = anomaly, 0 = rank 1, 1 = rank 2,
+        etc.) Each annotation is associated to the x,y,z tip position of its corresponding leaf, in a csv
+        """
 
-        dict_path = 'rank_annotation/rank_annotation_{}.npy'.format(self.plantid)
+        df_path = 'rank_annotation/rank_annotation_{}.csv'.format(self.plantid)
 
-        if os.path.isfile(dict_path):
-
-            dict_annotation = np.load(dict_path, allow_pickle='TRUE').item()
+        if os.path.isfile(df_path):
+            df = pd.read_csv(df_path)
 
             for snapshot in self.snapshots:
                 task = snapshot.metainfo.task
-                if task in dict_annotation.keys():
-                    snapshot.rank_annotation = dict_annotation[task]
 
+                if task not in df['task'].unique():
+                    # a task was not annotated
+                    snapshot.rank_annotation = [-2] * len(snapshot.leaves)
+                else:
+                    dftask = df[df['task'] == task]
+                    snapshot.rank_annotation = []
+                    for leaf in snapshot.leaves:
+                        tip = leaf.real_longest_polyline()[-1]
+                        dftip = dftask[dftask['leaf_tip'] == str(tip)]
+                        if dftip.empty:
+                            # a leaf was not annotated
+                            pass
+                        else:
+                            snapshot.rank_annotation.append(dftip.iloc[0]['rank'])
+
+    # TODO : update
     def save_rank_annotation(self):
 
         annotation_dict = dict()
