@@ -45,8 +45,7 @@ TEST_SET = [1276, 948, 803, 931, 827, 1424, 1435, 479, 449, 318, 348, 1266, 705,
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from openalea.maizetrack.utils import phm3d_to_px2d
-from openalea.maizetrack.data_loading import get_rgb
+from openalea.maizetrack.utils import phm3d_to_px2d, get_rgb
 import json
 
 

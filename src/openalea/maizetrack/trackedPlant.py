@@ -7,10 +7,9 @@ from matplotlib import pyplot as plt
 
 from openalea.maizetrack.alignment import multi_alignment, detect_abnormal_ranks, polylines_distance
 
-from openalea.maizetrack.utils import simplify, rgb_and_polylines, polyline_until_z
+from openalea.maizetrack.utils import simplify, rgb_and_polylines, polyline_until_z, get_rgb, missing_data
 from openalea.maizetrack.phenomenal_display import plot_leaves
 from openalea.maizetrack.stem_correction import abnormal_stem
-from openalea.maizetrack.data_loading import load_plant, missing_data, get_rgb
 
 from openalea.phenomenal.object.voxelSegmentation import VoxelSegmentation
 from openalea.phenomenal.object.voxelOrgan import VoxelOrgan
