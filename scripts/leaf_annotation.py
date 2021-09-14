@@ -1,5 +1,5 @@
-from openalea.maizetrack.utils import best_leaf_angles
-from openalea.maizetrack.data_loading import metainfos_to_paths, get_metainfos_ZA17, load_plant, get_rgb
+from openalea.maizetrack.utils import best_leaf_angles, get_rgb
+from openalea.maizetrack.data_loading import metainfos_to_paths, get_metainfos_ZA17, load_plant
 from openalea.maizetrack.utils import phm3d_to_px2d, shooting_frame_conversion, rgb_and_polylines
 #from openalea.phenotracking.test_maize_track.plant_align import simplify, TrackedSnapshot
 from openalea.maizetrack.compute_vmsi import compute_vmsi

@@ -1,49 +1,10 @@
 import os
 import numpy as np
-from skimage import io
 
 from alinea.phenoarch.cache import snapshot_index
 from alinea.phenoarch.cache_client import FileCache
 
 from openalea.phenomenal import object as phm_obj
-
-
-def get_rgb(metainfo, angle, main_folder='rgb', plant_folder=True, save=True, side=True):
-
-    plantid = int(metainfo.plant[:4])
-
-    if plant_folder:
-        img_folder = main_folder + '/' + str(plantid)
-    else:
-        img_folder = main_folder
-    if not os.path.isdir(img_folder):
-        os.mkdir(img_folder)
-
-    if side:
-        if angle == 0:
-            # 0 can both correspond to side and top ! Need to select side image
-            i_angles = [i for i, a in enumerate(metainfo.camera_angle) if a == angle]
-            i_angle = [i for i in i_angles if metainfo.view_type[i] == 'side'][0]
-        else:
-            i_angle = metainfo.camera_angle.index(angle)
-    else:
-        i_angles = [i for i, a in enumerate(metainfo.camera_angle) if a == 0]
-        i_angle = [i for i in i_angles if metainfo.view_type[i] == 'top'][0]
-
-    # TODO : 'plantid' or 'id' ??
-    img_name = 'id{}_d{}_t{}_a{}.png'.format(plantid, metainfo.daydate, metainfo.task, angle)
-    path = img_folder + '/' + img_name
-
-    if img_name in os.listdir(img_folder):
-        img = io.imread(path)
-    else:
-        url = metainfo.path_http[i_angle]
-        img = io.imread(url)[:, :, :3]
-
-        if save:
-            io.imsave(path, img)
-
-    return img, path
 
 
 def get_plantname_ZA17(plantid):
@@ -105,9 +66,12 @@ def get_folder_ZA17(stem_smoothing=True, phm_parameters=(4, 1, 'notop', 4, 100),
 
     return 'local_cache/' + folder
 
-def metainfos_to_paths(metainfos, stem_smoothing=True, phm_parameters=(4, 1, 'notop', 4, 100), object='vmsi', old=False):
 
-    folder = get_folder_ZA17(stem_smoothing=stem_smoothing, phm_parameters=phm_parameters, object=object, old=old)
+def metainfos_to_paths(metainfos, stem_smoothing=True, phm_parameters=(4, 1, 'notop', 4, 100), object='vmsi', old=False,
+                       folder=None):
+
+    if folder is None:
+        folder = get_folder_ZA17(stem_smoothing=stem_smoothing, phm_parameters=phm_parameters, object=object, old=old)
 
     # file extension
     if object == 'vmsi' or object == 'skeleton':
@@ -156,27 +120,6 @@ def load_plant(metainfos, paths):
         vmsi_list.append(vmsi)
 
     return vmsi_list
-
-
-def missing_data(vmsi):
-
-    # Check if there are some missing data in vmsi.
-
-    missing = False
-
-    stem_needed_info = ['pm_z_base', 'pm_z_tip']
-    if not all([k in vmsi.get_stem().info for k in stem_needed_info]):
-        missing = True
-
-    leaf_needed_info = ['pm_position_base', 'pm_z_tip', 'pm_label', 'pm_azimuth_angle',
-                        'pm_length', 'pm_insertion_angle', 'pm_z_tip']
-    for leaf in vmsi.get_leafs():
-        if not all([k in leaf.info for k in leaf_needed_info]):
-            missing = True
-
-    return missing
-
-
 
 ### leaf redundancy
 #leaf_to_remove = []

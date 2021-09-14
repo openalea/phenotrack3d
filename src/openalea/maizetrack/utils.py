@@ -1,3 +1,5 @@
+import os
+
 import cv2
 import numpy as np
 
@@ -7,6 +9,7 @@ from alinea.phenoarch.shooting_frame import get_shooting_frame
 # NOT USED #####
 ################
 from openalea.maizetrack.phenomenal_display import PALETTE
+from skimage import io
 
 
 def shooting_frame_conversion(s_frame_name):
@@ -162,3 +165,59 @@ def best_leaf_angles(leaf, shooting_frame, angles, n=1):
 
     return list(sorted_surfaces.keys())[:n]
 
+
+def get_rgb(metainfo, angle, main_folder='rgb', plant_folder=True, save=True, side=True):
+
+    plantid = int(metainfo.plant[:4])
+
+    if plant_folder:
+        img_folder = main_folder + '/' + str(plantid)
+    else:
+        img_folder = main_folder
+    if not os.path.isdir(img_folder):
+        os.mkdir(img_folder)
+
+    if side:
+        if angle == 0:
+            # 0 can both correspond to side and top ! Need to select side image
+            i_angles = [i for i, a in enumerate(metainfo.camera_angle) if a == angle]
+            i_angle = [i for i in i_angles if metainfo.view_type[i] == 'side'][0]
+        else:
+            i_angle = metainfo.camera_angle.index(angle)
+    else:
+        i_angles = [i for i, a in enumerate(metainfo.camera_angle) if a == 0]
+        i_angle = [i for i in i_angles if metainfo.view_type[i] == 'top'][0]
+
+    # TODO : 'plantid' or 'id' ??
+    img_name = 'id{}_d{}_t{}_a{}.png'.format(plantid, metainfo.daydate, metainfo.task, angle)
+    path = img_folder + '/' + img_name
+
+    if img_name in os.listdir(img_folder):
+        img = io.imread(path)
+    else:
+        url = metainfo.path_http[i_angle]
+        img = io.imread(url)[:, :, :3]
+
+        if save:
+            io.imsave(path, img)
+
+    return img, path
+
+
+def missing_data(vmsi):
+
+    # Check if there are some missing data in vmsi.
+
+    missing = False
+
+    stem_needed_info = ['pm_z_base', 'pm_z_tip']
+    if not all([k in vmsi.get_stem().info for k in stem_needed_info]):
+        missing = True
+
+    leaf_needed_info = ['pm_position_base', 'pm_z_tip', 'pm_label', 'pm_azimuth_angle',
+                        'pm_length', 'pm_insertion_angle', 'pm_z_tip']
+    for leaf in vmsi.get_leafs():
+        if not all([k in leaf.info for k in leaf_needed_info]):
+            missing = True
+
+    return missing

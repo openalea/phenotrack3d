@@ -1,8 +1,5 @@
-import os
-import numpy as np
 import matplotlib.pyplot as plt
 
-import openalea.phenomenal.object as phm_obj
 import openalea.phenomenal.segmentation as phm_seg
 
 from openalea.maizetrack.data_loading import *
@@ -11,6 +8,7 @@ from openalea.maizetrack.stem_correction import smoothing_function, ear_anomaly,
 #import pickle
 #with open('filename.pickle', 'wb') as handle:
 #    pickle.dump([sk, graph], handle, protocol=pickle.HIGHEST_PROTOCOL)
+from openalea.maizetrack.utils import missing_data
 
 
 def compute_vmsi(plantid, phm_parameters=(4, 1, 'notop', 4, 100), daydate_max=None, smoothing_function=None):
