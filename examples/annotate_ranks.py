@@ -2,7 +2,7 @@ import copy
 import os
 import pandas as pd
 from openalea.maizetrack.rank_annotation import annotate
-from openalea.maizetrack.data_loading import get_metainfos_ZA17, metainfos_to_paths, check_existence
+from openalea.maizetrack.data_loading import get_metainfos_ZA17, metainfos_to_paths, check_existence, load_plant
 from openalea.maizetrack.trackedPlant import TrackedPlant, align_growing
 
 plantid = 1424
@@ -28,12 +28,16 @@ plantids = sorted([int(p.split('_')[-1].split('.')[0]) for p in os.listdir('rank
 
 for plantid in plantids:
 
+    print(plantid)
+
     metainfos = get_metainfos_ZA17(plantid)
     paths = metainfos_to_paths(metainfos, stem_smoothing=True, phm_parameters=(4, 1, 'notop', 4, 100), old=False)
     metainfos, paths = check_existence(metainfos, paths)
-    plant = TrackedPlant.load_and_check(metainfos, paths)
+    vmsi_list = load_plant(metainfos, paths)
+    plant = TrackedPlant.load_and_check(vmsi_list)
 
     for angle in [60, 150]:
+        print(angle)
         plant.load_images(angle)
 
 # ============ create new annotation saving system
