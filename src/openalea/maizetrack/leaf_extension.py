@@ -15,6 +15,8 @@ from skimage.morphology import skeletonize
 from skan import skeleton_to_csgraph, Skeleton, summarize
 from scipy.spatial.distance import directed_hausdorff
 
+import warnings
+
 from openalea.maizetrack.utils import phm3d_to_px2d
 
 
@@ -117,9 +119,11 @@ def compute_extension(polylines_phm, polylines_sk, seg_length=50., dist_threshol
             pl_sk_segment = pl_sk[a:(b + 1)]
 
             # distance between phm and sk segments
-            d1 = directed_hausdorff(pl_sk_segment, pl_phm_segment)[0]
-            d2 = directed_hausdorff(pl_phm_segment, pl_sk_segment)[0]
-            dist = max(d1, d2)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                d1 = directed_hausdorff(pl_sk_segment, pl_phm_segment)[0]
+                d2 = directed_hausdorff(pl_phm_segment, pl_sk_segment)[0]
+                dist = max(d1, d2)
 
             if dist < dist_threshold and b > b_selected:
                 b_selected = b

@@ -3,7 +3,7 @@ import os
 
 from openalea.phenomenal import object as phm_obj
 
-from openalea.phenotracking.maize_track.data_loading import metainfos_to_paths, get_metainfos_ZA17
+from openalea.maizetrack.data_loading import metainfos_to_paths, get_metainfos_ZA17
 from openalea.maizetrack.leaf_extension import leaf_extension
 
 if __name__ == '__main__':
