@@ -28,7 +28,7 @@ if __name__ == '__main__':
     angles = sorted([a for a, t in zip(metainfo.camera_angle, metainfo.view_type) if t == 'side'])
     for angle in angles:
         file = next(f for f in files if str(angle) in f[-7:])
-        binaries[angle] = io.imread(path + '/' + file) / 255.
+        binaries[angle] = io.imread(path + '/' + file)  # / 255. later
 
     vmsi = leaf_extension(vmsi, binaries, shooting_frame, display_angle=60)
 

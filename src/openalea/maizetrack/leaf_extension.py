@@ -11,13 +11,11 @@ extension values found for this leaf, or 1 if no extension value was found.
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-
 from skimage.morphology import skeletonize
 from skan import skeleton_to_csgraph, Skeleton, summarize
-
-from openalea.phenotracking.maize_track.utils import phm3d_to_px2d
-
 from scipy.spatial.distance import directed_hausdorff
+
+from openalea.maizetrack.utils import phm3d_to_px2d
 
 
 def polyline_length(pl):
@@ -182,7 +180,7 @@ def leaf_extension(vmsi, binaries, shooting_frame, display_angle=None):
 
     Args:
         vmsi:
-        binaries: {side angle : binary image}
+        binaries: {side angle : binary image}. each image pixel equals 0 or 255.
         shooting_frame:
 
     Returns: vmsi object with a new 'pm_length_extended' key in the .info attribute of each leaf.
@@ -195,6 +193,9 @@ def leaf_extension(vmsi, binaries, shooting_frame, display_angle=None):
 
     polylines_phm = [vmsi.get_leaf_order(k).real_longest_polyline() for k in range(1, 1 + vmsi.get_number_of_leaf())]
     angles = binaries.keys()
+
+    for angle in angles:
+        binaries[angle] = binaries[angle] / 255.
 
     res = dict()
     for angle in angles:
