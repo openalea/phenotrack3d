@@ -110,6 +110,16 @@ class TrackedSnapshot(VoxelSegmentation):
         self.voxel_organs = vmsi.voxel_organs
         self.info = vmsi.info
 
+        # reset leaves initial order in "leaves", using the phenonemal ordering method (topology)
+        # from openalea.phenomenal.segmentation.maize_analysis import maize_growing_leaf_analysis_real_length
+        # mature_leafs = [(l, l.info["pm_z_base"]) for l in self.get_mature_leafs()]
+        # mature_leafs.sort(key=lambda x: x[1])
+        # growing_leafs = [(l, maize_growing_leaf_analysis_real_length(self, l)) for l in self.get_growing_leafs()]
+        # growing_leafs.sort(key=lambda x: x[1])
+        # for leaf_number, (l, _) in enumerate(mature_leafs + growing_leafs):
+        #     l.info["pm_leaf_number"] = leaf_number + 1
+
+        # initial leaves ordering with phenomenal order (given in leaf.info['pm_leaf_number'])
         leaves = [self.get_leaf_order(k) for k in range(1, 1 + self.get_number_of_leaf())]
         self.leaves = [TrackedLeaf(leaf) for leaf in leaves]
 
@@ -136,19 +146,12 @@ class TrackedSnapshot(VoxelSegmentation):
 
 class TrackedPlant:
 
-    def __init__(self, snapshots, plantid, snapshot_ref):
-        """setup Plant
+    def __init__(self, snapshots, abnormal_vmsi_list, plantid):
 
-        Args:
-            snapshots: a list of...
-            plantid:
-            var_names:
-        """
         self.snapshots = snapshots
+        self.abnormal_vmsi_list = abnormal_vmsi_list
         self.plantid = plantid
         self.var_names = ['height', 'length', 'azimuth']
-
-        self.snapshot_ref = snapshot_ref
 
     def standardization(self):
 
@@ -174,7 +177,7 @@ class TrackedPlant:
                 leaf.real_pl = simplify(leaf.real_longest_polyline(), 50)
 
     @staticmethod
-    def load_and_check(vmsi_list, path_result=None, check_stem=True):
+    def load_and_check(vmsi_list, check_stem=True):
         """ Update 13/09 : takes list of vmsi as input, each vmsi having a metainfo attribute"""
 
         # TODO : arg json=None, ou on peut donner le json qui contient 3 infos : ref_time, ref_order, orders=M
@@ -186,42 +189,30 @@ class TrackedPlant:
 
         plantid = int(vmsi_list[0].metainfo.plant[:4])
 
-        if path_result is None:
-
-            # check abnormal vmsi objects
-            # a - remove vmsi with missing data
-            checks_data = [not missing_data(v) for v in vmsi_list]
-            print('{} vmsi to remove because of missing data'.format(len(checks_data) - sum(checks_data)))
-            # b - vmsi with stem shape problems
-            if check_stem:
-                checks_stem = [not b for b in abnormal_stem(vmsi_list)]
-                print('{} vmsi to remove because of stem shape abnormality'.format(len(checks_stem) - sum(checks_stem)))
-            else:
-                checks_stem = [True] * len(vmsi_list)
-                print('no stem shape abnormality checking')
-            checks = list((np.array(checks_data) * np.array(checks_stem)).astype(int))
-
-            # init alignment matrix
-            # TODO : no delete
-            final_vmsi_list = [vmsi for check, vmsi in zip(checks, vmsi_list) if check]
-            orders = [list(range(v.get_number_of_leaf())) for v in final_vmsi_list]
-            max_len = max([len(order) for order in orders])
-            orders = [order + [-1] * (max_len - len(order)) for order in orders]
-
+        # check abnormal vmsi objects
+        # a - remove vmsi with missing data
+        checks_data = [not missing_data(v) for v in vmsi_list]
+        print('{} vmsi to remove because of missing data'.format(len(checks_data) - sum(checks_data)))
+        # b - vmsi with stem shape problems
+        if check_stem:
+            checks_stem = [not b for b in abnormal_stem(vmsi_list)]
+            print('{} vmsi to remove because of stem shape abnormality'.format(len(checks_stem) - sum(checks_stem)))
         else:
+            checks_stem = [True] * len(vmsi_list)
+            print('no stem shape abnormality checking')
+        checks = list((np.array(checks_data) * np.array(checks_stem)).astype(int))
 
-            with open(path_result) as f:
-                res = json.load(f)
-
-            checks = res['snapshot_ref']
-            final_vmsi_list = [vmsi for check, vmsi in zip(checks, vmsi_list) if check]
-
-            orders = res['alignment_matrix']
+        # init alignment matrix
+        normal_vmsi_list = [vmsi for check, vmsi in zip(checks, vmsi_list) if check]
+        abnormal_vmsi_list = [vmsi for check, vmsi in zip(checks, vmsi_list) if not check]
+        orders = [list(range(v.get_number_of_leaf())) for v in normal_vmsi_list]
+        max_len = max([len(order) for order in orders])
+        orders = [order + [-1] * (max_len - len(order)) for order in orders]
 
         print('creating snapshots / leaves')
-        snapshots = [TrackedSnapshot(vmsi, vmsi.metainfo, order) for vmsi, order in zip(final_vmsi_list, orders)]
+        snapshots = [TrackedSnapshot(vmsi, vmsi.metainfo, order) for vmsi, order in zip(normal_vmsi_list, orders)]
         print('ok')
-        trackedplant = TrackedPlant(snapshots=snapshots, plantid=plantid, snapshot_ref=checks)
+        trackedplant = TrackedPlant(snapshots=snapshots, abnormal_vmsi_list=abnormal_vmsi_list, plantid=plantid)
 
         return trackedplant
 
@@ -434,23 +425,26 @@ class TrackedPlant:
                          duration=1000 / fps,
                          loop=0)
 
-    def save_tracking(self, path):
-
-        res = dict()
-        res['snapshot_ref'] = [int(n) for n in self.snapshot_ref]
-        res['alignment_matrix'] = list(map(tuple, [snapshot.order for snapshot in self.snapshots]))
-
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(res, f, ensure_ascii=False, indent=4)
-
     def dump(self):
 
-        res = []
+        res = {}
         for snapshot in self.snapshots:
             ranks = snapshot.get_ranks()
             for leaf, rank in zip(snapshot.leaves, ranks):
-                leaf.info['pm_leaf_number'] = rank + 1
-            res.append(snapshot)
+                leaf.info['pm_leaf_number_tracking'] = rank + 1
+
+            # snapshot to vmsi conversion
+            vmsi = VoxelSegmentation(voxels_size=snapshot.voxels_size)
+            vmsi.voxel_organs = snapshot.voxel_organs
+            vmsi.info = snapshot.info
+
+            res[snapshot.metainfo.timestamp] = vmsi
+
+        for vmsi in self.abnormal_vmsi_list:
+            for leaf in vmsi.get_leafs():
+                leaf.info['pm_leaf_number_tracking'] = 0
+
+            res[vmsi.metainfo.timestamp] = vmsi
 
         return res
 
