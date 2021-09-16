@@ -15,7 +15,7 @@ def get_plantname_ZA17(plantid):
     # df_za17 = pd.read_csv('U:/M3P/PHENOARCH/MANIPS/ZA17/Data/WholeDatasetZA17.csv')
     # name = [name for name in df_za17.plantcode.unique() if name[:4] == str_id][0]
     # FASTER : GET NAME FROM A COPY OF PLANT NAMES LIST :
-    names = np.load('local_cache/plantcodes.npy', allow_pickle=True)
+    names = np.load('local_cache/ZA17/plantcodes.npy', allow_pickle=True)
     name = next(name for name in names if name[:4] == str_id)
 
     return name
@@ -26,7 +26,7 @@ def get_metainfos_ZA17(plantid, dates=None):
     name = get_plantname_ZA17(plantid)
 
     # copy of modulor cache
-    index = snapshot_index('ZA17', cache_client=FileCache('local_cache'), image_client=None)
+    index = snapshot_index('ZA17', cache_client=FileCache('local_cache/ZA17'), image_client=None)
 
     metainfos = []
 
@@ -64,7 +64,7 @@ def get_folder_ZA17(stem_smoothing=True, phm_parameters=(4, 1, 'notop', 4, 100),
             else:
                 folder += '_no_stem_smooth'
 
-    return 'local_cache/' + folder
+    return 'local_cache/ZA17/' + folder
 
 
 def metainfos_to_paths(metainfos, stem_smoothing=True, phm_parameters=(4, 1, 'notop', 4, 100), object='vmsi', old=False,
@@ -111,6 +111,8 @@ def load_plant(metainfos, paths):
     vmsi_list = []
     for metainfo, path in zip(metainfos, paths):
 
+        print(metainfo.daydate)
+
         # load vmsi
         vmsi = phm_obj.VoxelSegmentation.read_from_json_gz(path)
 
@@ -131,5 +133,4 @@ def load_plant(metainfos, paths):
 #            leaf_to_remove.append(i)
 #        else:
 #            leaf_to_remove.append(i+1)
-
 

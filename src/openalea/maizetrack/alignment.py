@@ -17,7 +17,7 @@ from openalea.maizetrack.utils import quantile_point
 # TODO : replace '-' by -1 ?
 # TODO: add simple usage test (in test)
 # TODO : keep local ?
-def needleman_wunsch(X, Y, gap, local=False, gap_extremity_factor=1.):
+def needleman_wunsch(X, Y, gap, local=False, gap_extremity_factor=1., old_method=True):
     """
     Performs pairwise alignment of profiles X and Y with Needleman-Wunsch algorithm.
     A profile is defined as an array of one or more sequences of the same length.
@@ -68,7 +68,7 @@ def needleman_wunsch(X, Y, gap, local=False, gap_extremity_factor=1.):
         for j in range(ny):
 
             # TODO : gap argument should be useless ?
-            t[0] = F[i, j] - scoring_function(X[:, i, :], Y[:, j, :], gap, gap_extremity)
+            t[0] = F[i, j] - scoring_function(X[:, i, :], Y[:, j, :], gap, gap_extremity, old_method=old_method)
 
             if j + 1 == ny:
                 t[1] = F[i, j + 1] - gap_extremity
@@ -134,7 +134,7 @@ def needleman_wunsch(X, Y, gap, local=False, gap_extremity_factor=1.):
 #     return score
 
 
-def substitution_function(vec1, vec2, gap):
+def substitution_function(vec1, vec2, gap, old_method=True):
     """
 
     Compute a dissimilarity score between two vectors
@@ -160,27 +160,20 @@ def substitution_function(vec1, vec2, gap):
     elif (all(np.isnan(vec1)) and not all(np.isnan(vec2))) or (all(np.isnan(vec2)) and not all(np.isnan(vec1))):
         return gap
 
-    # height, length, azimut
-    #weights = np.array([3, 1, 2])
-    #weights = np.array([3, 1])
-    #v1 = leaf1 * weights
-    #v2 = leaf2 * weights
-    #s = np.sqrt(np.sum((v1 - v2)**2))
-
     # TODO : specifique pour les features des feuilles du maïs, parametres a revoir
-    dw = 3 * (vec1[0] - vec2[0])
-    dl = 1 * (vec1[1] - vec2[1])
-    da = abs(((vec1[2] - vec2[2]) + 1) % 2 - 1)
-    s = np.sqrt(dw**2 + dl**2 + da**2)
+    if old_method:
+        dw = 3 * (vec1[0] - vec2[0])
+        dl = 1 * (vec1[1] - vec2[1])
+        da = abs(((vec1[2] - vec2[2]) + 1) % 2 - 1)
+        s = np.sqrt(dw**2 + dl**2 + da**2)
 
-    #s = 1 + abs(v1 - v2)
-    #s[0] = s[0] ** 4
-    #s -= 1
+    else:
+        s = np.linalg.norm(vec1 - vec2)
 
     return s
 
 
-def scoring_function(x, y, gap, gap_extremity):
+def scoring_function(x, y, gap, gap_extremity, old_method=True):
     """
 
     Compute a dissimilarity score between two columns of vectors x and y.
@@ -204,7 +197,7 @@ def scoring_function(x, y, gap, gap_extremity):
     for xvec in x:
         for yvec in y:
             if not all(np.isnan(xvec)) and not all(np.isnan(yvec)):
-                score.append(substitution_function(xvec, yvec, gap))
+                score.append(substitution_function(xvec, yvec, gap, old_method=old_method))
 
     if score != []:
         score = np.mean(score)
@@ -247,7 +240,7 @@ def insert_gaps(all_sequences, seq_indexes, alignment):
     return all_sequences2
 
 
-def multi_alignment(sequences, gap, gap_extremity_factor=1., direction=1, n_previous=5):
+def multi_alignment(sequences, gap, gap_extremity_factor=1., direction=1, n_previous=5, old_method=True):
     """
 
     Alignment of n sequences.
@@ -278,7 +271,7 @@ def multi_alignment(sequences, gap, gap_extremity_factor=1., direction=1, n_prev
         Y = np.array([aligned_sequences[yi]])
 
         # alignment
-        rx, ry = needleman_wunsch(X, Y, gap, gap_extremity_factor=gap_extremity_factor)
+        rx, ry = needleman_wunsch(X, Y, gap, gap_extremity_factor=gap_extremity_factor, old_method=old_method)
 
         # update all sequences from sq0 to sq yi
         aligned_sequences = insert_gaps(aligned_sequences, xi, rx) # xi = sequences that all have already been aligned
@@ -371,8 +364,6 @@ def polylines_distance(pl1, pl2, method):
             dist /= np.max([len1, len2])
 
     return dist
-
-
 
 
 
