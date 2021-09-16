@@ -77,6 +77,9 @@ def align_growing(trackedplant):
                     print(' !! ')
                 trackedplant.snapshots[t].order[r] = g_min
 
+    # update leaf.info
+    trackedplant.tracking_info_update()
+
 
 class TrackedLeaf(VoxelOrgan):
 
@@ -87,6 +90,8 @@ class TrackedLeaf(VoxelOrgan):
 
         self.highest_pl = ()
         self.real_pl = ()
+
+        self.rank_annotation = None
 
         # TODO : exact value of h_stem ??
         # insertion height (starting from stem tip for growing leaves)
@@ -132,6 +137,7 @@ class TrackedSnapshot(VoxelSegmentation):
         # return np.array([l.vec for l in self.leaves])
         s_vec = len(self.leaves[0].vec)
         return np.array([self.leaves[i].vec if i != '-' else [np.NAN] * s_vec for i in self.order])
+        # TODO : used in align_mature, where i != '-' is not possible ?
 
     # def add_gap(self, i_gaps):
     #     for i in i_gaps:
@@ -153,6 +159,10 @@ class TrackedPlant:
         self.plantid = plantid
         self.var_names = ['height', 'length', 'azimuth']
 
+        for vmsi in self.abnormal_vmsi_list:
+            for leaf in vmsi.get_leafs():
+                leaf.info['pm_leaf_number_tracking'] = 0
+
     def standardization(self):
 
         # height and length normalization
@@ -167,6 +177,15 @@ class TrackedPlant:
         for snapshot in self.snapshots:
             for leaf in snapshot.leaves:
                 leaf.vec[2] /= 180
+
+    # TODO : not here ?
+    def compute_vectors(self, w_h):
+        """ new method to compute x,y,z vectors """
+        for snapshot in self.snapshots:
+            for leaf in snapshot.leaves:
+                a = leaf.azimuth / 360 * 2 * np.pi
+                h = leaf.height
+                leaf.vec = np.array([np.cos(a), np.sin(a), w_h * h])
 
     def simplify_polylines(self):
 
@@ -227,6 +246,8 @@ class TrackedPlant:
         etc.) Each annotation is associated to the x,y,z tip position of its corresponding leaf, in a csv
         """
 
+        # TODO : don't stock annotated ranks in both snapshot and leaf..
+
         df_path = 'rank_annotation/rank_annotation_{}.csv'.format(self.plantid)
 
         if os.path.isfile(df_path):
@@ -238,6 +259,9 @@ class TrackedPlant:
                 if task not in df['task'].unique():
                     # a task was not annotated
                     snapshot.rank_annotation = [-2] * len(snapshot.leaves)
+
+                    for leaf in snapshot.leaves:
+                        leaf.rank_annotation = -2
                 else:
                     dftask = df[df['task'] == task]
                     snapshot.rank_annotation = []
@@ -246,9 +270,11 @@ class TrackedPlant:
                         dftip = dftask[dftask['leaf_tip'] == str(tip)]
                         if dftip.empty:
                             # a leaf was not annotated
-                            pass
+                            snapshot.rank_annotation.append(-2)
+                            leaf.rank_annotation = -2
                         else:
                             snapshot.rank_annotation.append(dftip.iloc[0]['rank'])
+                            leaf.rank_annotation = dftip.iloc[0]['rank']
 
     # TODO : update
     def save_rank_annotation(self):
@@ -271,23 +297,29 @@ class TrackedPlant:
         else:
             print("Can't save")
 
-    def get_dataframe(self):
+    def get_dataframe(self, load_anot=True):
 
-        self.load_rank_annotation()
+        if load_anot:
+            self.load_rank_annotation()
 
-        df = pd.DataFrame(columns=['plantid', 'timestamp', 'leaf_number', 'obs', 'pred', 'mature', 'h', 'l', 'a'])
+        df = []
 
         for snapshot in self.snapshots:
 
-            obs = snapshot.rank_annotation
-            pred = snapshot.get_ranks()
+            annotation = np.array(snapshot.rank_annotation) + 1
+            #pred = np.array(snapshot.get_ranks()) + 1
 
             for i, leaf in enumerate(snapshot.leaves):
 
                 mature = leaf.info['pm_label'] == 'mature_leaf'
                 h, l, a = (leaf.height, leaf.length, leaf.azimuth)
-                df.loc[df.shape[0]] = [self.plantid, snapshot.metainfo.timestamp, leaf.info['pm_leaf_number'],
-                                       obs[i], pred[i], mature, h, l, a]
+                df.append([self.plantid, snapshot.metainfo.timestamp, mature,
+                                       leaf.info['pm_leaf_number'], leaf.info['pm_leaf_number_tracking'], annotation[i],
+                                       h, l, a, leaf.info['pm_length_extended']])
+
+        df = pd.DataFrame(df, columns=['plantid', 'timestamp', 'mature',
+                                   'rank_phenomenal', 'rank_tracking', 'rank_annotation',
+                                   'h', 'l', 'a', 'l_extended'])
 
         return df
 
@@ -353,18 +385,21 @@ class TrackedPlant:
 
         return ref_skeleton
 
-    def align_mature(self, gap=1.5, gap_extremity_factor=0.5, direction=1, n_previous=5):
-        """
+    def tracking_info_update(self):
+        for snapshot in self.snapshots:
+            ranks = snapshot.get_ranks()
+            for leaf, rank in zip(snapshot.leaves, ranks):
+                leaf.info['pm_leaf_number_tracking'] = rank + 1
 
-        Returns
-        -------
-
-        """
+    def align_mature(self, gap=1.5, gap_extremity_factor=0.5, direction=1, n_previous=5, w_h=0.001, old_method=True):
 
         # Step 1 - multi sequence alignment
         # ==============================================
 
-        self.standardization()
+        if old_method:
+            self.standardization()
+        else:
+            self.compute_vectors(w_h=w_h)
 
         # init order attribute of each snapshot, with only mature leaves:
         for snapshot in self.snapshots:
@@ -372,7 +407,8 @@ class TrackedPlant:
 
         sequences = [snapshot.snapshot_ar() for snapshot in self.snapshots]
 
-        alignment_matrix = multi_alignment(sequences, gap, gap_extremity_factor, direction, n_previous)
+        alignment_matrix = multi_alignment(sequences, gap, gap_extremity_factor, direction, n_previous,
+                                           old_method=old_method)
 
         # update order attributes
         for i, order in enumerate(alignment_matrix):
@@ -389,6 +425,11 @@ class TrackedPlant:
 
         print('{}/{} ranks removed'.format(len(abnormal_ranks), len(alignment_matrix[0])))
 
+        # ============ saving results in leaf.info attributes
+
+        # update leaf.info
+        self.tracking_info_update()
+
         return alignment_matrix
 
     def display(self, dates=None, stem=False):
@@ -402,7 +443,6 @@ class TrackedPlant:
         for snapshot in snapshots:
             leaves += [snapshot.leaves[i_leaf] for i_leaf in snapshot.order if i_leaf != -1]
             ranks += [i for i, i_leaf in enumerate(snapshot.order) if i_leaf != -1]
-
 
         plot_leaves(leaves, ranks)
 
@@ -429,9 +469,9 @@ class TrackedPlant:
 
         res = {}
         for snapshot in self.snapshots:
-            ranks = snapshot.get_ranks()
-            for leaf, rank in zip(snapshot.leaves, ranks):
-                leaf.info['pm_leaf_number_tracking'] = rank + 1
+            # ranks = snapshot.get_ranks()
+            # for leaf, rank in zip(snapshot.leaves, ranks):
+            #     leaf.info['pm_leaf_number_tracking'] = rank + 1
 
             # snapshot to vmsi conversion
             vmsi = VoxelSegmentation(voxels_size=snapshot.voxels_size)
@@ -441,8 +481,8 @@ class TrackedPlant:
             res[snapshot.metainfo.timestamp] = vmsi
 
         for vmsi in self.abnormal_vmsi_list:
-            for leaf in vmsi.get_leafs():
-                leaf.info['pm_leaf_number_tracking'] = 0
+            # for leaf in vmsi.get_leafs():
+            #     leaf.info['pm_leaf_number_tracking'] = 0
 
             res[vmsi.metainfo.timestamp] = vmsi
 
