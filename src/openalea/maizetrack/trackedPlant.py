@@ -1,84 +1,17 @@
 import os
-import json
 import numpy as np
 import pandas as pd
 from PIL import Image
 from matplotlib import pyplot as plt
 
-from openalea.maizetrack.alignment import multi_alignment, detect_abnormal_ranks, polylines_distance
+from openalea.maizetrack.alignment import multi_alignment, detect_abnormal_ranks, phm_leaves_distance
 
-from openalea.maizetrack.utils import simplify, rgb_and_polylines, polyline_until_z, get_rgb, missing_data
+from openalea.maizetrack.utils import simplify, rgb_and_polylines, get_rgb, missing_data
 from openalea.maizetrack.phenomenal_display import plot_leaves
 from openalea.maizetrack.stem_correction import abnormal_stem
 
 from openalea.phenomenal.object.voxelSegmentation import VoxelSegmentation
 from openalea.phenomenal.object.voxelOrgan import VoxelOrgan
-
-
-def phm_leaves_distance(leaf_ref, leaf_candidate, method):
-    # distance between two phm leaf objects, starting from a same base
-
-    # creating two polylines starting from the same base
-    leaf1, leaf2 = leaf_ref, leaf_candidate
-    pl1 = leaf1.real_pl
-    pl2 = leaf2.real_pl
-    zbase1, zbase2 = pl1[0][2], pl2[0][2]
-    if zbase1 < zbase2:
-        pl2 = polyline_until_z(leaf2.highest_pl, zbase1)
-    else:
-        pl1 = polyline_until_z(leaf1.highest_pl, zbase2)
-
-    #normalize
-    len1 = np.sum([np.linalg.norm(np.array(pl1[k]) - np.array(pl1[k + 1])) for k in range(len(pl1) - 1)])
-    pl1 = pl1 / len1
-    pl2 = pl2 / len1
-
-    # computing distance
-    d = polylines_distance(pl1, pl2, method)
-
-    return d
-
-
-def align_growing(trackedplant):
-
-    trackedplant.simplify_polylines()
-
-    mature_ref = trackedplant.get_ref_skeleton(False)
-
-    for r in mature_ref.keys():
-
-        # init leaf ref
-        leaf_ref = mature_ref[r]
-
-        # day t when leaf starts to be mature
-        t_mature = next((t for t, snapshot in enumerate(trackedplant.snapshots) if snapshot.order[r] != -1))
-
-        for t in range(t_mature)[::-1]:
-
-            snapshot = trackedplant.snapshots[t]
-            g_growing = [g for g in range(len(snapshot.leaves)) if g not in snapshot.order]
-
-            # plot_leaves([leaf_ref] + [snapshot.leaves[g] for g in g_growing], [-1] + [k for k in range(len(g_growing))])
-
-            if g_growing != []:
-
-                g_min, d_min = -1, float('inf')
-                for g in g_growing:
-                    leaf_candidate = snapshot.leaves[g]
-                    d = phm_leaves_distance(leaf_ref=leaf_ref, leaf_candidate=leaf_candidate, method=2)
-                    if d < d_min:
-                        g_min, d_min = g, d
-
-                if g_min == -1:
-                    print('problem : ', t, r, g_growing, d)
-
-                #print('rank = {}, t = {}, d = {}, (g = {})'.format(r, t, round(d_min, 2), g_min))
-                if trackedplant.snapshots[t].order[r] != -1:
-                    print(' !! ')
-                trackedplant.snapshots[t].order[r] = g_min
-
-    # update leaf.info
-    trackedplant.tracking_info_update()
 
 
 class TrackedLeaf(VoxelOrgan):
@@ -95,15 +28,21 @@ class TrackedLeaf(VoxelOrgan):
 
         # TODO : exact value of h_stem ??
         # insertion height (starting from stem tip for growing leaves)
-        h_stem = -700
+        #h_stem = -700
         # TODO : takes time..
-        self.height = self.real_longest_polyline()[0][2] - h_stem
+        #self.height = self.real_longest_polyline()[0][2] - h_stem
 
         self.azimuth = leaf.info['pm_azimuth_angle']
         if leaf.info['pm_label'] == 'mature_leaf':
             self.length = leaf.info['pm_length']
+            if 'pm_z_base_voxel' in leaf.info:
+                self.height = leaf.info['pm_z_base_voxel']
+            else:
+                self.height = leaf.info['pm_z_base']
+                print('no voxel height !')
         else:
             self.length = leaf.info['pm_length_with_speudo_stem']
+            self.height = leaf.info['pm_z_base']
 
         self.vec = [self.height, self.length, self.azimuth]
 
@@ -131,7 +70,7 @@ class TrackedSnapshot(VoxelSegmentation):
         self.metainfo = metainfo
         self.order = order
         self.image = dict()
-        self.rank_annotation = [-1] * len(self.leaves)
+        self.rank_annotation = [-2] * len(self.leaves)
 
     def snapshot_ar(self):
         # return np.array([l.vec for l in self.leaves])
@@ -163,20 +102,20 @@ class TrackedPlant:
             for leaf in vmsi.get_leafs():
                 leaf.info['pm_leaf_number_tracking'] = 0
 
-    def standardization(self):
-
-        # height and length normalization
-        heights = np.array([leaf.vec[0] for snapshot in self.snapshots for leaf in snapshot.leaves])
-        lengths = np.array([leaf.vec[1] for snapshot in self.snapshots for leaf in snapshot.leaves])
-        for snapshot in self.snapshots:
-            for leaf in snapshot.leaves:
-                leaf.vec[0] = (leaf.vec[0] - np.mean(heights)) / (np.std(heights))
-                leaf.vec[1] = (leaf.vec[1] - np.mean(lengths)) / (np.std(lengths))
-
-        # azimuth [-180, 180] -> [-1, 1]
-        for snapshot in self.snapshots:
-            for leaf in snapshot.leaves:
-                leaf.vec[2] /= 180
+    # def standardization(self):
+    #
+    #     # height and length normalization
+    #     heights = np.array([leaf.vec[0] for snapshot in self.snapshots for leaf in snapshot.leaves])
+    #     lengths = np.array([leaf.vec[1] for snapshot in self.snapshots for leaf in snapshot.leaves])
+    #     for snapshot in self.snapshots:
+    #         for leaf in snapshot.leaves:
+    #             leaf.vec[0] = (leaf.vec[0] - np.mean(heights)) / (np.std(heights))
+    #             leaf.vec[1] = (leaf.vec[1] - np.mean(lengths)) / (np.std(lengths))
+    #
+    #     # azimuth [-180, 180] -> [-1, 1]
+    #     for snapshot in self.snapshots:
+    #         for leaf in snapshot.leaves:
+    #             leaf.vec[2] /= 180
 
     # TODO : not here ?
     def compute_vectors(self, w_h):
@@ -240,6 +179,7 @@ class TrackedPlant:
         for snapshot in self.snapshots:
             snapshot.image[angle], _ = get_rgb(metainfo=snapshot.metainfo, angle=angle)
 
+    # TODO : move in rank_annotation ?
     def load_rank_annotation(self):
         """
         Load rank annotation for each leaf of each snapshot (-2 = not annotated, -1 = anomaly, 0 = rank 1, 1 = rank 2,
@@ -276,26 +216,29 @@ class TrackedPlant:
                             snapshot.rank_annotation.append(dftip.iloc[0]['rank'])
                             leaf.rank_annotation = dftip.iloc[0]['rank']
 
-    # TODO : update
+    # TODO : move in rank_annotation ?
     def save_rank_annotation(self):
 
-        annotation_dict = dict()
+        df = []
+
         save = True
 
         for snapshot in self.snapshots:
 
             # verify that a rank was not asign severals times
-            ranks = [r for r in snapshot.rank_annotation if r != -1]
+            ranks = [r for r in snapshot.rank_annotation if r not in [-2, -1]]
             if len(ranks) != len(set(ranks)):
-                print('task', snapshot.metainfo.task, ': several leaves have the same rank !')
+                print('task', snapshot.metainfo.task, ': several leaves have the same rank ! Cannot save')
                 save = False
             else:
-                annotation_dict[snapshot.metainfo.task] = snapshot.rank_annotation
+                for leaf, rank in zip(snapshot.leaves, snapshot.rank_annotation):
+                    leaf_tip = str(leaf.real_longest_polyline()[-1])
+                    df.append([snapshot.metainfo.task, leaf_tip, rank])
+
+        df = pd.DataFrame(df, columns=['task', 'leaf_tip', 'rank'])
 
         if save:
-            np.save('rank_annotation/rank_annotation_{}.npy'.format(self.plantid), annotation_dict)
-        else:
-            print("Can't save")
+            df.to_csv('rank_annotation/rank_annotation_{}.csv'.format(self.plantid), index=False)
 
     def get_dataframe(self, load_anot=True):
 
@@ -315,11 +258,11 @@ class TrackedPlant:
                 h, l, a = (leaf.height, leaf.length, leaf.azimuth)
                 df.append([self.plantid, snapshot.metainfo.timestamp, mature,
                                        leaf.info['pm_leaf_number'], leaf.info['pm_leaf_number_tracking'], annotation[i],
-                                       h, l, a, leaf.info['pm_length_extended']])
+                                       h, l, a, leaf.info['pm_length_extended'], leaf.info['pm_z_base']])
 
         df = pd.DataFrame(df, columns=['plantid', 'timestamp', 'mature',
                                    'rank_phenomenal', 'rank_tracking', 'rank_annotation',
-                                   'h', 'l', 'a', 'l_extended'])
+                                   'h', 'l', 'a', 'l_extended', 'h_old'])
 
         return df
 
@@ -358,7 +301,7 @@ class TrackedPlant:
     #     mat = [[int(e != '-') for e in sp] for sp in mat]
     #     return mat
 
-    def get_ref_skeleton(self, show=False):
+    def get_ref_skeleton(self, display=False):
 
         ref_skeleton = dict()
 
@@ -380,7 +323,7 @@ class TrackedPlant:
 
             ref_skeleton[rank] = leaves[np.argmin(dists)]
 
-        if show:
+        if display:
             plot_leaves([ref_skeleton[r] for r in ranks], ranks)
 
         return ref_skeleton
@@ -391,15 +334,12 @@ class TrackedPlant:
             for leaf, rank in zip(snapshot.leaves, ranks):
                 leaf.info['pm_leaf_number_tracking'] = rank + 1
 
-    def align_mature(self, gap=1.5, gap_extremity_factor=0.5, direction=1, n_previous=5, w_h=0.001, old_method=True):
+    def align_mature(self, gap=1.5, gap_extremity_factor=0.5, direction=1, n_previous=5, w_h=0.001):
 
         # Step 1 - multi sequence alignment
         # ==============================================
 
-        if old_method:
-            self.standardization()
-        else:
-            self.compute_vectors(w_h=w_h)
+        self.compute_vectors(w_h=w_h)
 
         # init order attribute of each snapshot, with only mature leaves:
         for snapshot in self.snapshots:
@@ -407,8 +347,7 @@ class TrackedPlant:
 
         sequences = [snapshot.snapshot_ar() for snapshot in self.snapshots]
 
-        alignment_matrix = multi_alignment(sequences, gap, gap_extremity_factor, direction, n_previous,
-                                           old_method=old_method)
+        alignment_matrix = multi_alignment(sequences, gap, gap_extremity_factor, direction, n_previous)
 
         # update order attributes
         for i, order in enumerate(alignment_matrix):
@@ -431,6 +370,47 @@ class TrackedPlant:
         self.tracking_info_update()
 
         return alignment_matrix
+
+    def align_growing(self):
+
+        self.simplify_polylines()
+
+        mature_ref = self.get_ref_skeleton(display=False)
+
+        for r in mature_ref.keys():
+
+            # init leaf ref
+            leaf_ref = mature_ref[r]
+
+            # day t when leaf starts to be mature
+            t_mature = next((t for t, snapshot in enumerate(self.snapshots) if snapshot.order[r] != -1))
+
+            for t in range(t_mature)[::-1]:
+
+                snapshot = self.snapshots[t]
+                g_growing = [g for g in range(len(snapshot.leaves)) if g not in snapshot.order]
+
+                # plot_leaves([leaf_ref] + [snapshot.leaves[g] for g in g_growing], [-1] + [k for k in range(len(g_growing))])
+
+                if g_growing != []:
+
+                    g_min, d_min = -1, float('inf')
+                    for g in g_growing:
+                        leaf_candidate = snapshot.leaves[g]
+                        d = phm_leaves_distance(leaf_ref=leaf_ref, leaf_candidate=leaf_candidate, method=2)
+                        if d < d_min:
+                            g_min, d_min = g, d
+
+                    if g_min == -1:
+                        print('problem : ', t, r, g_growing, d)
+
+                    # print('rank = {}, t = {}, d = {}, (g = {})'.format(r, t, round(d_min, 2), g_min))
+                    if self.snapshots[t].order[r] != -1:
+                        print(' !! ')
+                    self.snapshots[t].order[r] = g_min
+
+        # update leaf.info
+        self.tracking_info_update()
 
     def display(self, dates=None, stem=False):
 

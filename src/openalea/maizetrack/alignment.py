@@ -2,22 +2,18 @@ import numpy as np
 from copy import deepcopy
 from scipy.spatial.distance import directed_hausdorff
 
-from openalea.maizetrack.utils import quantile_point
-
-
-# def empty(row):
-#    return all([math.isnan(x) for x in row])
+from openalea.maizetrack.utils import quantile_point, polyline_until_z
 
 # TODO : no maize/plant vocabulary
 
-#######################################################################
-# Functions for step 1 : mature leaf tracking
-#######################################################################
+##########################################################################################################
+##### Functions for step 1 : mature leaf tracking ########################################################
+##########################################################################################################
+
 
 # TODO : replace '-' by -1 ?
 # TODO: add simple usage test (in test)
-# TODO : keep local ?
-def needleman_wunsch(X, Y, gap, local=False, gap_extremity_factor=1., old_method=True):
+def needleman_wunsch(X, Y, gap, gap_extremity_factor=1.):
     """
     Performs pairwise alignment of profiles X and Y with Needleman-Wunsch algorithm.
     A profile is defined as an array of one or more sequences of the same length.
@@ -34,14 +30,13 @@ def needleman_wunsch(X, Y, gap, local=False, gap_extremity_factor=1., old_method
         profile 2
     gap : float
         gap penalty parameter
-    local : deprecated...
     gap_extremity_factor : float
         optional factor to increase/decrease gap penalty on sequence extremities
 
     Returns
     -------
-
     """
+
     if X.size == 0 and Y.size == 0:
         rx, ry = [], []
         return rx, ry
@@ -53,9 +48,8 @@ def needleman_wunsch(X, Y, gap, local=False, gap_extremity_factor=1., old_method
 
     # Optimal score at each possible pair of characters.
     F = np.zeros((nx + 1, ny + 1))
-    if not local:
-        F[:, 0] = np.linspace(start=0, stop=-nx*gap_extremity, num=nx+1)
-        F[0, :] = np.linspace(start=0, stop=-ny*gap_extremity, num=ny+1)
+    F[:, 0] = np.linspace(start=0, stop=-nx*gap_extremity, num=nx+1)
+    F[0, :] = np.linspace(start=0, stop=-ny*gap_extremity, num=ny+1)
 
     # Pointers to trace through an optimal alignment.
     P = np.zeros((nx + 1, ny + 1))
@@ -68,7 +62,7 @@ def needleman_wunsch(X, Y, gap, local=False, gap_extremity_factor=1., old_method
         for j in range(ny):
 
             # TODO : gap argument should be useless ?
-            t[0] = F[i, j] - scoring_function(X[:, i, :], Y[:, j, :], gap, gap_extremity, old_method=old_method)
+            t[0] = F[i, j] - alignment_score(X[:, i, :], Y[:, j, :], gap_extremity)
 
             if j + 1 == ny:
                 t[1] = F[i, j + 1] - gap_extremity
@@ -89,14 +83,8 @@ def needleman_wunsch(X, Y, gap, local=False, gap_extremity_factor=1., old_method
             if t[2] == tmax:
                 P[i + 1, j + 1] += 4
 
-            if local and tmax < 0:
-                F[i+1, j+1] = 0
-
     # Trace through an optimal alignment.
-    if local:
-        i, j = np.unravel_index(F.argmax(), F.shape)
-    else:
-        i, j = nx, ny
+    i, j = nx, ny
 
     rx, ry = [], []
     condition = True
@@ -115,10 +103,7 @@ def needleman_wunsch(X, Y, gap, local=False, gap_extremity_factor=1., old_method
             ry.append(j - 1)
             j -= 1
 
-        if local:
-            condition = (i > 0 or j > 0) and F[i, j] > 0
-        else:
-            condition = i > 0 or j > 0
+        condition = i > 0 or j > 0
 
     rx = rx[::-1]
     ry = ry[::-1]
@@ -126,83 +111,66 @@ def needleman_wunsch(X, Y, gap, local=False, gap_extremity_factor=1., old_method
     return rx, ry
 
 
-# def nw_score(X, Y, gap):
-#     score = 0
-#     if X.shape[1] == Y.shape[1]:
-#         for i in range(X.shape[1]):
-#             score += scoring_function(X[:, i, :], Y[:, i, :], gap, gap_extremity)
-#     return score
-
-
-def substitution_function(vec1, vec2, gap, old_method=True):
+def scoring_function(vec1, vec2):
     """
 
-    Compute a dissimilarity score between two vectors
+    Compute a dissimilarity score between two vectors of same length, which is equal to their euclidian distance.
 
     Parameters
     ----------
     vec1 : 1D array
     vec2 : 1D array, of same length than vec1
-    gap :
+    gap : float
 
     Returns
     -------
+    float
 
     """
 
-    # TODO : check len == 3 if input = vec
+    # # should never happen. Only useful for nw_score()
+    # if all(np.isnan(vec1)) and all(np.isnan(vec2)):
+    #     return gap * 2
+    #
+    # # same
+    # elif (all(np.isnan(vec1)) and not all(np.isnan(vec2))) or (all(np.isnan(vec2)) and not all(np.isnan(vec1))):
+    #     return gap
 
-    # should never happen. Only useful for nw_score()
-    if all(np.isnan(vec1)) and all(np.isnan(vec2)):
-        return gap * 2
-
-    # same
-    elif (all(np.isnan(vec1)) and not all(np.isnan(vec2))) or (all(np.isnan(vec2)) and not all(np.isnan(vec1))):
-        return gap
-
-    # TODO : specifique pour les features des feuilles du maïs, parametres a revoir
-    if old_method:
-        dw = 3 * (vec1[0] - vec2[0])
-        dl = 1 * (vec1[1] - vec2[1])
-        da = abs(((vec1[2] - vec2[2]) + 1) % 2 - 1)
-        s = np.sqrt(dw**2 + dl**2 + da**2)
-
-    else:
-        s = np.linalg.norm(vec1 - vec2)
-
-    return s
+    return np.linalg.norm(vec1 - vec2)
 
 
-def scoring_function(x, y, gap, gap_extremity, old_method=True):
+def alignment_score(x, y, gap_extremity):
     """
 
-    Compute a dissimilarity score between two columns of vectors x and y.
+    Compute a dissimilarity score between two arrays of vectors x and y.
+    x and y can have different lengths, but all vectors in x and y must have the same length.
 
     Parameters
     ----------
-    x
-    y
-    gap
-    gap_extremity
+    x : 2D array
+        size (number of vectors, vector length)
+    y : 2D array
+        size (number of vectors, vector length)
+    gap_extremity : float
 
     Returns
     -------
+    float
 
     """
 
-    # TODO : gap argument should be useless ?
-
-    # change 28/04, because it's not possible to calculate an azimuth mean :
+    # list of scores for each pair of vectors xvec and yvec,
+    # with xvec and yvec being non-gap elements of x and y respectively.
     score = []
     for xvec in x:
         for yvec in y:
             if not all(np.isnan(xvec)) and not all(np.isnan(yvec)):
-                score.append(substitution_function(xvec, yvec, gap, old_method=old_method))
+                score.append(scoring_function(xvec, yvec))
 
-    if score != []:
+    if score:
         score = np.mean(score)
     else:
-        score = gap_extremity #bricolage
+        score = gap_extremity #TODO : bricolage
 
     return score
 
@@ -215,9 +183,10 @@ def insert_gaps(all_sequences, seq_indexes, alignment):
 
     Parameters
     ----------
-    all_sequences
-    seq_indexes
-    alignment
+    all_sequences : list of 2D arrays
+    seq_indexes : list of int
+    alignment : list of int and str ('-')
+        result from needleman_wunsch()
 
     Returns
     -------
@@ -233,25 +202,33 @@ def insert_gaps(all_sequences, seq_indexes, alignment):
         for gi in gap_indexes:
 
             if all_sequences2[si].size == 0:
-                all_sequences2[si] = np.full((1,vec_len), np.NAN)
+                all_sequences2[si] = np.full((1, vec_len), np.NAN)
             else:
                 all_sequences2[si] = np.insert(all_sequences2[si], gi, np.NAN, 0)
 
     return all_sequences2
 
 
-def multi_alignment(sequences, gap, gap_extremity_factor=1., direction=1, n_previous=5, old_method=True):
+def multi_alignment(sequences, gap, gap_extremity_factor=1., direction=1, n_previous=0):
     """
 
-    Alignment of n sequences.
+    Multi sequence alignment algorithm to align n sequences, using a progressive method. At each step, a sequence (Y)
+    is aligned with a matrix (X) corresponding to the alignement of k sequences, resulting in the alignment of
+    k + 1 sequences. Each pairwise alignment of X vs Y is based on needleman-wunsch algorithm.
 
     Parameters
     ----------
-    sequences
-    gap
-    gap_extremity_factor
-    direction
-    n_previous
+    sequences : list of 2D arrays
+        The list of sequences to align
+    gap : float
+        penalty parameter to add a gap
+    gap_extremity_factor : float
+        parameter to modify the gap penalty on sequence extremity positions, relatively to gap value.
+        For example, if gap = 5 and gap_extremity_factor = 0.6, Then the penalty for terminal gaps is equal to 3.
+    direction : int
+        if direction == 1 : align from t=1 to t=tmax. If direction == -1 : align from t=tmax to t=1.
+    n_previous : int
+
 
     Returns
     -------
@@ -271,14 +248,14 @@ def multi_alignment(sequences, gap, gap_extremity_factor=1., direction=1, n_prev
         Y = np.array([aligned_sequences[yi]])
 
         # alignment
-        rx, ry = needleman_wunsch(X, Y, gap, gap_extremity_factor=gap_extremity_factor, old_method=old_method)
+        rx, ry = needleman_wunsch(X, Y, gap, gap_extremity_factor=gap_extremity_factor)
 
         # update all sequences from sq0 to sq yi
         aligned_sequences = insert_gaps(aligned_sequences, xi, rx) # xi = sequences that all have already been aligned
         aligned_sequences = insert_gaps(aligned_sequences, [yi], ry)
 
     # convert list of aligned sequences (all having the same length) in a matrix of vector indexes (-1 = gap)
-    # TODO : this matrix could be progressively constructed, in parallel to the alignment process ? Would be easier
+    # TODO : this matrix could be progressively constructed, in parallel to the alignment process. It would be easier
     # TODO : to allow permutations for example..
     s = np.array(aligned_sequences).shape
     alignment_matrix = np.full((s[0], s[1]), -1)
@@ -366,10 +343,25 @@ def polylines_distance(pl1, pl2, method):
     return dist
 
 
+def phm_leaves_distance(leaf_ref, leaf_candidate, method):
+    # distance between two phm leaf objects, starting from a same base
 
+    # creating two polylines starting from the same base
+    leaf1, leaf2 = leaf_ref, leaf_candidate
+    pl1 = leaf1.real_pl
+    pl2 = leaf2.real_pl
+    zbase1, zbase2 = pl1[0][2], pl2[0][2]
+    if zbase1 < zbase2:
+        pl2 = polyline_until_z(leaf2.highest_pl, zbase1)
+    else:
+        pl1 = polyline_until_z(leaf1.highest_pl, zbase2)
 
+    #normalize
+    len1 = np.sum([np.linalg.norm(np.array(pl1[k]) - np.array(pl1[k + 1])) for k in range(len(pl1) - 1)])
+    pl1 = pl1 / len1
+    pl2 = pl2 / len1
 
+    # computing distance
+    d = polylines_distance(pl1, pl2, method)
 
-
-
-
+    return d

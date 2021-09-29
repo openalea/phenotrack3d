@@ -1,5 +1,6 @@
 """
-A cv2 interface to annotate leaf ranks on phenomenal objects, in order to evaluate tracking performance.
+A cv2 tool to annotate leaf ranks on an openalea.maizetrack.trackedPlant.TrackedPlant object, in order to evaluate
+tracking performance.
 """
 
 import cv2
@@ -61,26 +62,52 @@ class Interface:
         cv2.imshow(self.window_name, img_rs.astype(np.uint8))
 
 
-def annotate(plant, init=True):
+def annotate(plant, init=''):
+    """
+    Run an interface to annotate leaf ranks of a TrackedPlant object.
+    Press "Esc" key to exit
+
+    Parameters
+    ----------
+    plant : openalea.maizetrack.trackedPlant.TrackedPlant
+    init : str
+        '' or 'all' or 'not done'
+
+    Returns
+    -------
+        plant with updated rank_annotation attribute
+    """
 
     interface = Interface()
 
+    # load RGB images for each angle in angles
     angles = [60, 150]
-
     if not all([a in plant.snapshots[0].image.keys() for a in angles]):
-        print('loading images..')
         for angle in angles:
-            print(angle)
+            print('loading images for angle {}...'.format(angle))
             plant.load_images(angle)
-        print('images loaded')
 
+    # simplify polylines to make their loading faster
+    print('computing polylines simplification...')
     if plant.snapshots[-1].leaves[-1].real_pl == ():
         plant.simplify_polylines()
 
-    # start annotation from alignment result
-    if init:
+    print('done')
+
+    if init == 'all':
+        # start annotation from alignment result
         for snapshot in plant.snapshots:
             snapshot.rank_annotation = snapshot.get_ranks()
+
+    elif init == 'not done':
+        # start annotation from alignment result ONLY for snapshots that have not been annotated at all.
+        dates = []
+        for snapshot in plant.snapshots:
+            if all([r == -2 for r in snapshot.rank_annotation]):
+                dates.append(snapshot.metainfo.daydate)
+                snapshot.rank_annotation = snapshot.get_ranks()
+        print('dates to annotate : ', sorted(dates))
+
 
     i_img = 0
     angle = angles[0]
@@ -125,7 +152,6 @@ def annotate(plant, init=True):
                     dists.append(d)
                 i_selected = np.argmin(dists)
 
-                print('t')
                 img, polylines = rgb_and_polylines(plant.snapshots[i_img], angle=angle, selected=i_selected)
                 interface.display(img)
                 interface.reset_click()

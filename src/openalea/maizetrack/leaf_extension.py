@@ -168,13 +168,13 @@ def compute_extension(polylines_phm, polylines_sk, seg_length=50., dist_threshol
 def display_leaf_extension(binary, polylines_sk, polylines_phm_2d, extension_polylines):
     image = binary[..., np.newaxis] * np.ones((binary.shape[0], binary.shape[1], 3)) * 255.
     for pl in polylines_sk:
-        image = cv2.polylines(np.float32(image), [pl.astype(int).reshape((-1, 1, 2))], False, (255, 0, 0), 5)
+        image = cv2.polylines(np.float32(image), [pl.astype(int).reshape((-1, 1, 2))], False, (255, 0, 0), 6)
         image = cv2.circle(image, (int(pl[-1][0]), int(pl[-1][1])), 10, (255, 0, 0), -1)
     for pl in polylines_phm_2d:
-        image = cv2.polylines(np.float32(image), [pl.astype(int).reshape((-1, 1, 2))], False, (0, 0, 255), 5)
+        image = cv2.polylines(np.float32(image), [pl.astype(int).reshape((-1, 1, 2))], False, (0, 0, 255), 6)
         image = cv2.circle(image, (int(pl[-1][0]), int(pl[-1][1])), 10, (0, 0, 255), -1)
     for pl in extension_polylines:
-        image = cv2.polylines(np.float32(image), [pl.astype(int).reshape((-1, 1, 2))], False, (0, 255, 0), 5)
+        image = cv2.polylines(np.float32(image), [pl.astype(int).reshape((-1, 1, 2))], False, (0, 255, 0), 3)
     plt.figure()
     plt.imshow(image / 255.)
 
@@ -198,14 +198,15 @@ def leaf_extension(vmsi, binaries, shooting_frame, display_angle=None):
     polylines_phm = [vmsi.get_leaf_order(k).real_longest_polyline() for k in range(1, 1 + vmsi.get_number_of_leaf())]
     angles = binaries.keys()
 
+    binaries2 = binaries.copy()
     for angle in angles:
-        binaries[angle] = binaries[angle] / 255.
+        binaries2[angle] = binaries2[angle] / 255.
 
     res = dict()
     for angle in angles:
 
         # 2D skeleton polylines
-        polylines_sk = skeleton_branches(binaries[angle])
+        polylines_sk = skeleton_branches(binaries2[angle])
 
         # phenomenal polylines projected in 2D
         polylines_phm_2d = [phm3d_to_px2d(pl, shooting_frame, angle) for pl in polylines_phm]
@@ -216,7 +217,11 @@ def leaf_extension(vmsi, binaries, shooting_frame, display_angle=None):
         res[angle] = extension_factors
 
         if angle == display_angle:
-            display_leaf_extension(binaries[angle], polylines_sk, polylines_phm_2d, extension_polylines)
+            #display_leaf_extension(binaries[angle], polylines_sk, polylines_phm_2d, extension_polylines)
+            full_polylines_phm = [vmsi.get_leaf_order(k).get_highest_polyline().polyline
+                                  for k in range(1, 1 + vmsi.get_number_of_leaf())]
+            full_polylines_phm_2d = [phm3d_to_px2d(pl, shooting_frame, angle) for pl in full_polylines_phm]
+            display_leaf_extension(binaries2[angle], polylines_sk, full_polylines_phm_2d, extension_polylines)
 
     # ============================================================================================================
 

@@ -59,8 +59,21 @@ def phm3d_to_px2d(xyz, sf, angle=60):
     f = get_shooting_frame(sf).get_calibration('side').get_projection(angle)
     return f(xyz)
 
+
 def rgb_and_polylines(snapshot, angle, selected=None, ranks=None):
-    # snapshot : a vmsi or TrackedSnapshot object. A metainfo attribute need to be attached to this object.
+    """
+
+    Parameters
+    ----------
+    snapshot : vmsi with metainfo attribute, or TrackedPlant object
+    angle : int
+    selected
+    ranks
+
+    Returns
+    -------
+
+    """
 
     # rgb image
     img = snapshot.image[angle]
