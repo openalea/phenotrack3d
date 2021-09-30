@@ -135,13 +135,13 @@ class TrackedPlant:
                 leaf.real_pl = simplify(leaf.real_longest_polyline(), 50)
 
     @staticmethod
-    def load_and_check(vmsi_list, check_stem=True):
+    def load_and_check(vmsi_list, check_stem=True, discontinuity=5):
         """ Update 13/09 : takes list of vmsi as input, each vmsi having a metainfo attribute"""
 
         # TODO : arg json=None, ou on peut donner le json qui contient 3 infos : ref_time, ref_order, orders=M
 
         # sort vmsi objects by time
-        timestamps = [vmsi.metainfo.timestamp for vmsi in vmsi_list]
+        timestamps = np.array([vmsi.metainfo.timestamp for vmsi in vmsi_list])
         order = sorted(range(len(timestamps)), key=lambda k: timestamps[k])
         vmsi_list = [vmsi_list[i] for i in order]
 
@@ -158,7 +158,17 @@ class TrackedPlant:
         else:
             checks_stem = [True] * len(vmsi_list)
             print('no stem shape abnormality checking')
-        checks = list((np.array(checks_data) * np.array(checks_stem)).astype(int))
+
+        # check if there is no big time gap in the time-series
+        timestamps2 = [vmsi.metainfo.timestamp for vmsi in vmsi_list] # vmsi_list is ordered this time
+        checks_continuity = np.array([True] * len(vmsi_list))
+        dt_mean = np.mean(np.diff(timestamps2))
+        for i in range(1, len(timestamps2)):
+            if (timestamps2[i] - timestamps2[i - 1]) > discontinuity * dt_mean:
+                checks_continuity[i:] = False
+        print('{} vmsi to remove because of time gap'.format(len(checks_continuity) - sum(checks_continuity)))
+
+        checks = list((np.array(checks_data) * np.array(checks_stem) * np.array(checks_continuity)).astype(int))
 
         # init alignment matrix
         normal_vmsi_list = [vmsi for check, vmsi in zip(checks, vmsi_list) if check]
@@ -241,6 +251,9 @@ class TrackedPlant:
             df.to_csv('rank_annotation/rank_annotation_{}.csv'.format(self.plantid), index=False)
 
     def get_dataframe(self, load_anot=True):
+        """
+        Summarize data for all snapshots that were tracked, in a dataframe
+        """
 
         if load_anot:
             self.load_rank_annotation()
