@@ -148,7 +148,10 @@ def quantile_point(pl, q):
 def polyline_until_z(pl, z):
     # TODO : approximatif
     # return the polyline section starting from height z
-    i = next((i for i, pos in enumerate(pl) if pos[2] > z))
+    if np.max(pl[:, 2]) < z:
+        i = 0
+    else:
+        i = next((i for i, pos in enumerate(pl) if pos[2] > z))
     return pl[i:]
 
 

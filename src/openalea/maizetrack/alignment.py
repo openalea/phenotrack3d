@@ -358,8 +358,8 @@ def phm_leaves_distance(leaf_ref, leaf_candidate, method):
 
     #normalize
     len1 = np.sum([np.linalg.norm(np.array(pl1[k]) - np.array(pl1[k + 1])) for k in range(len(pl1) - 1)])
-    pl1 = pl1 / len1
-    pl2 = pl2 / len1
+    pl1 = pl1 / np.max((len1, 0.0001))
+    pl2 = pl2 / np.max((len1, 0.0001))
 
     # computing distance
     d = polylines_distance(pl1, pl2, method)
