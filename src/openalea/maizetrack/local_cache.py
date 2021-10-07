@@ -1,3 +1,7 @@
+"""
+Scripts to load data in local cache system (Benoit D), in a similar way to Phenoarch package
+"""
+
 import os
 import numpy as np
 
@@ -104,14 +108,16 @@ def check_existence(metainfos, paths):
 
 def load_plant(metainfos, paths):
 
-    # load all existing vmsi that correspond to a metainfo : len(vmsi_list) <= len(metainfos)
-    # metainfos and paths need to have the same length
-    # each loaded vmsi gets the corresponding metainfo as a new attribute.
+    """
+    load all existing vmsi that correspond to a metainfo : len(vmsi_list) <= len(metainfos)
+    metainfos and paths need to have the same length
+    each loaded vmsi gets the corresponding metainfo as a new attribute
+    """
+
+    print('loading vmsi..')
 
     vmsi_list = []
     for metainfo, path in zip(metainfos, paths):
-
-        print(metainfo.daydate)
 
         # load vmsi
         vmsi = phm_obj.VoxelSegmentation.read_from_json_gz(path)
@@ -122,15 +128,3 @@ def load_plant(metainfos, paths):
         vmsi_list.append(vmsi)
 
     return vmsi_list
-
-### leaf redundancy
-#leaf_to_remove = []
-#base_pos = [vmsi.get_leaf_order(k+1).info['pm_position_base'] for k in range(len(vmsi.get_leafs()))]
-#z_tip = [vmsi.get_leaf_order(k+1).info['pm_z_tip'] for k in range(len(vmsi.get_leafs()))]
-#for i in range(len(base_pos)-1):
-#    if base_pos[i] == base_pos[i+1]:
-#        if z_tip[i] < z_tip[i+1]:
-#            leaf_to_remove.append(i)
-#        else:
-#            leaf_to_remove.append(i+1)
-

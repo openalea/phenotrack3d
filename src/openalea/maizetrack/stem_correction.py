@@ -1,8 +1,9 @@
-import numpy as np
-import matplotlib.pyplot as plt
+# TODO : supprimer n_stem_min ?
 
+import numpy as np
 from scipy.signal import savgol_filter
 from scipy.interpolate import UnivariateSpline
+from scipy.spatial.distance import directed_hausdorff
 
 
 def z_to_xy(polyline, z):
@@ -28,7 +29,7 @@ def z_to_xy(polyline, z):
     return x, y
 
 
-def get_median_polyline(polylines, n_stem_min=5, dz=2):
+def get_median_polyline(polylines, n_stem_min=0, dz=2):
     """
     Returns a median polyline on the z axis
 
@@ -61,69 +62,17 @@ def get_median_polyline(polylines, n_stem_min=5, dz=2):
         polylines = [pl for pl in polylines if pl[-1][2] > z]
         z += dz
 
-    return median_polyline
+    return np.array(median_polyline)
 
 
-def index_with_abnormal_stem_shape(stem_polylines, median_stem_polyline, dist_threshold=100, display=False):
-    """
-    if a polyline in stem_polylines deviates from the median_stem_polyline in a (x,y) plane with a distance
-    superior to dist_threshold, it is considered as abnormal. This function returns the list of indexes corresponding
-    to abnormal polylines.
-
-    Parameters
-    ----------
-    stem_polylines : list of 2D arrays
-        list of 3D polylines
-    median_stem_polyline : 2D array
-        a 3D polyline
-    dist_threshold : float
-    display : bool
-
-    Returns
-    -------
-    list
-        indexes of abnormal polylines
-
-    """
-
-    if display:
-        plt.figure()
-        plt.xlabel('Distance to median stem (mm)')
-        plt.ylabel('Height (mm)')
-        z_tip_min = np.min([pl[0][2] for pl in stem_polylines])
-        z_tip_max = np.max([pl[-1][2] for pl in stem_polylines])
-        plt.plot([dist_threshold, dist_threshold], [z_tip_min, z_tip_max],
-                 color='r')
-
-    index_to_remove = []
-    for i, polyline in enumerate(stem_polylines):
-        z_list = []
-        d_list = []
-        col = 'b'
-        for x, y, z in polyline:
-            x_median, y_median = z_to_xy(median_stem_polyline, z)
-            d = np.sqrt((x - x_median)**2 + (y - y_median)**2)
-            z_list.append(z)
-            d_list.append(d)
-
-            if d > dist_threshold and i not in index_to_remove:
-                index_to_remove.append(i)
-                col = 'r'
-
-        if display:
-            plt.plot(d_list, z_list, color=col)
-
-    return index_to_remove
-
-
-def abnormal_stem(vmsi_list, display=False):
+def abnormal_stem(vmsi_list, dist_threshold=100):
     """
     Test if some vmsi in vmsi_list have a stem whose shape is abnormally different compared to the other stems.
 
     Parameters
     ----------
     vmsi_list : list of openalea.phenomenal.object.voxelSegmentation.VoxelSegmentation objects
-    display: bool
+    dist_threshold : float
 
     Returns
     -------
@@ -136,12 +85,14 @@ def abnormal_stem(vmsi_list, display=False):
 
     median_stem = get_median_polyline(polylines=stem_polylines)
 
-    i_abnormal = index_with_abnormal_stem_shape(stem_polylines=stem_polylines,
-                                                median_stem_polyline=median_stem,
-                                                display=display)
+    abnormal = []
+    for i, polyline in enumerate(stem_polylines):
+        d = directed_hausdorff(polyline, median_stem)[0]
+        abnormal.append(d > dist_threshold)
 
-    return [i in i_abnormal for i in range(len(vmsi_list))]
+    return abnormal
 
+# ============================================================================================================
 
 def xyz_last_mature(vmsi):
 

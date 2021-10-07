@@ -1,3 +1,5 @@
+# TODO : move annotation scripts + remove plantid attribute
+
 import os
 import numpy as np
 import pandas as pd
@@ -7,11 +9,12 @@ from matplotlib import pyplot as plt
 from openalea.maizetrack.alignment import multi_alignment, detect_abnormal_ranks, phm_leaves_distance
 
 from openalea.maizetrack.utils import simplify, rgb_and_polylines, get_rgb, missing_data
-from openalea.maizetrack.phenomenal_display import plot_leaves
 from openalea.maizetrack.stem_correction import abnormal_stem
-
 from openalea.phenomenal.object.voxelSegmentation import VoxelSegmentation
 from openalea.phenomenal.object.voxelOrgan import VoxelOrgan
+
+from openalea.maizetrack.phenomenal_display import has_pgl_display, plot_leaves
+import warnings
 
 
 class TrackedLeaf(VoxelOrgan):
@@ -118,13 +121,14 @@ class TrackedPlant:
     #             leaf.vec[2] /= 180
 
     # TODO : not here ?
-    def compute_vectors(self, w_h):
+    def compute_vectors(self, w_h, w_l):
         """ new method to compute x,y,z vectors """
         for snapshot in self.snapshots:
             for leaf in snapshot.leaves:
                 a = leaf.azimuth / 360 * 2 * np.pi
                 h = leaf.height
-                leaf.vec = np.array([np.cos(a), np.sin(a), w_h * h])
+                l = leaf.length
+                leaf.vec = np.array([np.cos(a), np.sin(a), w_h * h, w_l * l])
 
     def simplify_polylines(self):
 
@@ -135,7 +139,7 @@ class TrackedPlant:
                 leaf.real_pl = simplify(leaf.real_longest_polyline(), 50)
 
     @staticmethod
-    def load_and_check(vmsi_list, check_stem=True, discontinuity=5):
+    def load_and_check(vmsi_list, check_stem=True, discontinuity=5, new_method=False):
         """ Update 13/09 : takes list of vmsi as input, each vmsi having a metainfo attribute"""
 
         # TODO : arg json=None, ou on peut donner le json qui contient 3 infos : ref_time, ref_order, orders=M
@@ -155,6 +159,7 @@ class TrackedPlant:
         if check_stem:
             checks_stem = [not b for b in abnormal_stem(vmsi_list)]
             print('{} vmsi to remove because of stem shape abnormality'.format(len(checks_stem) - sum(checks_stem)))
+            print([vmsi_list[i].metainfo.daydate for i in range(len(vmsi_list)) if checks_stem[i] == False])
         else:
             checks_stem = [True] * len(vmsi_list)
             print('no stem shape abnormality checking')
@@ -271,11 +276,11 @@ class TrackedPlant:
                 h, l, a = (leaf.height, leaf.length, leaf.azimuth)
                 df.append([self.plantid, snapshot.metainfo.timestamp, mature,
                                        leaf.info['pm_leaf_number'], leaf.info['pm_leaf_number_tracking'], annotation[i],
-                                       h, l, a, leaf.info['pm_length_extended'], leaf.info['pm_z_base']])
+                                       h, l, a, leaf.info['pm_length_extended']])
 
         df = pd.DataFrame(df, columns=['plantid', 'timestamp', 'mature',
                                    'rank_phenomenal', 'rank_tracking', 'rank_annotation',
-                                   'h', 'l', 'a', 'l_extended', 'h_old'])
+                                   'h', 'l', 'a', 'l_extended'])
 
         return df
 
@@ -337,7 +342,10 @@ class TrackedPlant:
             ref_skeleton[rank] = leaves[np.argmin(dists)]
 
         if display:
-            plot_leaves([ref_skeleton[r] for r in ranks], ranks)
+            if has_pgl_display:
+                plot_leaves([ref_skeleton[r] for r in ranks], ranks)
+            else:
+                warnings.warn('PlantGL not available')
 
         return ref_skeleton
 
@@ -347,12 +355,13 @@ class TrackedPlant:
             for leaf, rank in zip(snapshot.leaves, ranks):
                 leaf.info['pm_leaf_number_tracking'] = rank + 1
 
-    def align_mature(self, gap=1.5, gap_extremity_factor=0.5, direction=1, n_previous=5, w_h=0.001):
+    def align_mature(self, gap=1.5, gap_extremity_factor=0.5, direction=1, n_previous=5, w_h=0.001, w_l=0.001,
+                     rank_attribution=True):
 
         # Step 1 - multi sequence alignment
         # ==============================================
 
-        self.compute_vectors(w_h=w_h)
+        self.compute_vectors(w_h=w_h, w_l=w_l)
 
         # init order attribute of each snapshot, with only mature leaves:
         for snapshot in self.snapshots:
@@ -369,13 +378,15 @@ class TrackedPlant:
         # Step 2 - abnormal ranks removing
         # ==============================================
 
-        abnormal_ranks = detect_abnormal_ranks(alignment_matrix)
+        if rank_attribution:
 
-        # update order attributes
-        for snapshot in self.snapshots:
-            snapshot.order = [e for i, e in enumerate(snapshot.order) if i not in abnormal_ranks]
+            abnormal_ranks = detect_abnormal_ranks(alignment_matrix)
 
-        print('{}/{} ranks removed'.format(len(abnormal_ranks), len(alignment_matrix[0])))
+            # update order attributes
+            for snapshot in self.snapshots:
+                snapshot.order = [e for i, e in enumerate(snapshot.order) if i not in abnormal_ranks]
+
+            print('{}/{} ranks removed'.format(len(abnormal_ranks), len(alignment_matrix[0])))
 
         # ============ saving results in leaf.info attributes
 
@@ -425,7 +436,7 @@ class TrackedPlant:
         # update leaf.info
         self.tracking_info_update()
 
-    def display(self, dates=None, stem=False):
+    def display(self, dates=None, only_mature=False):
 
         if dates is None:
             snapshots = self.snapshots
@@ -436,6 +447,11 @@ class TrackedPlant:
         for snapshot in snapshots:
             leaves += [snapshot.leaves[i_leaf] for i_leaf in snapshot.order if i_leaf != -1]
             ranks += [i for i, i_leaf in enumerate(snapshot.order) if i_leaf != -1]
+
+        if only_mature:
+            i_mature = [i for i, leaf in enumerate(leaves) if leaf.info['pm_label'] == 'mature_leaf']
+            leaves = [leaves[i] for i in i_mature]
+            ranks = [ranks[i] for i in i_mature]
 
         plot_leaves(leaves, ranks)
 
@@ -482,180 +498,10 @@ class TrackedPlant:
         return res
 
 
-def show_alignment_score(trackedplant, dt=3, only_score=False):
-
-    # matrix containing all plant vecs (empty or not)
-    mat = trackedplant.motif_ar(np.arange(0, len(trackedplant.snapshots)))
-
-    mat = mat.transpose(1, 0, 2)[::-1]
-
-    R, T, nvar = mat.shape
-    mat_score = np.zeros((R, T)) * np.NAN
-    for r in range(R):
-        for t in range(T):
-            vec = mat[r, t]
-            if not all(np.isnan(vec)):
-
-                # surrounding vecs between t - dt and t + dt
-                surrounding_vecs = mat[r, max(0, t - dt):(t + dt + 1)]
-                # remove vec in surrounding_vecs
-                surrounding_vecs = np.array([v for v in surrounding_vecs if not np.all(v == vec)])
-                # remove empty vec
-                surrounding_vecs = surrounding_vecs[[not all(np.isnan(l)) for l in surrounding_vecs]]
-
-                if len(surrounding_vecs) == 0:
-                    score = 0
-                else:
-                    scores = [substitution_function(vec, veci, 0) for veci in surrounding_vecs]
-                    score = np.mean(scores)
-
-                #mat_score[r, t] = score
-                mat_score[r, t] = score
-
-
-    if only_score:
-        # heat map for score
-        plt.figure()
-        plt.imshow(mat_score, cmap='summer', vmin=0, vmax=3)
-        plt.xticks(np.arange(T), [trackedplant.snapshots[t].metainfo.daydate[5:] for t in range(T)], rotation='vertical')
-        plt.yticks(np.arange(R), R - np.arange(R))
-        plt.ylabel('Leaf rank')
-        plt.xlabel('Day')
-        plt.title('Similarity with other leaves of same rank (plantid {})'.format(trackedplant.plantid))
-
-        im_ratio = mat_score.shape[0] / mat_score.shape[1]
-        plt.colorbar(fraction=0.046 * im_ratio, pad=0.04)
-
-    else:
-
-        # TODO: broken
-
-        fig, axes = plt.subplots(nvar + 1, 1)
-        fig.suptitle('plantid' + str(trackedplant.plantid))
-
-        # 1 heat map / variable
-        for k in range(nvar):
-            plt.sca(axes[k])
-            mat_var = mat[:, :, k]
-            mat_var[pd.isnull(mat_var)] = -5
-            mat_var = mat_var.astype('float64')
-            plt.imshow(mat_var, cmap='hot')
-            plt.xticks(np.arange(T), [trackedplant.snapshots[t].metainfo.daydate[5:] for t in range(T)], rotation='vertical', fontsize=5)
-            plt.yticks(np.arange(R), R - np.arange(R), fontsize=8)
-            plt.ylabel('Rank')
-            plt.xlabel('Day')
-
-            plt.title(trackedplant.var_names[k])
-
-        # heat map for score
-        plt.sca(axes[nvar])
-        plt.imshow(mat_score)
-        plt.xticks(np.arange(T), [trackedplant.snapshots[t].metainfo.daydate[5:] for t in range(T)], rotation='vertical', fontsize=5)
-        plt.yticks(np.arange(R), R - np.arange(R), fontsize=8)
-        plt.ylabel('Rank')
-        plt.xlabel('Day')
-        plt.title('Score')
-
-
-
-
 #######################################################################
 # Deprecated functions
 #######################################################################
 
-
-def show_alignment_score2(plant, ranks):
-
-    # TODO : doesn't work, need to be corrected
-
-    leaves = []
-    ranks_obs = []
-    ranks_pred = []
-    times = []
-    for t, snapshot in enumerate(plant.snapshots):
-        leaves += snapshot.leaves
-        ranks_pred += snapshot.get_ranks()
-        ranks_obs += snapshot.rank_annotation
-        times += [t] * len(snapshot.leaves)
-
-    R, T = max(ranks) + 1, max(times) + 1
-    mat = np.full((R, T), None)
-    mat_anot = np.full((R, T), True)
-    for robs, rpred, t, leaf in zip(ranks_obs, ranks_pred, times, leaves):
-
-        if rpred != -1:
-            mat[rpred, t] = leaf
-
-            if robs != rpred:
-                mat_anot[rpred, t] = False
-                print(rpred, t)
-
-    mature_ranks = [[r for r, l in zip(s.get_ranks(), s.leaves) if l.info['pm_label'] == 'mature_leaf'] for s in
-                    plant.snapshots]
-    max_mature_rank = [1 + max(ranks) if ranks != [] else 0 for ranks in mature_ranks]
-
-    limit = []
-    xx, yy = [], []
-    r_previous = -1
-    for t, r in enumerate(max_mature_rank):
-        if r != r_previous:
-            limit.append([t, r_previous])
-            limit.append([t, r])
-        r_previous = r
-
-    R, T = mat.shape
-    mat_plt_growing = np.zeros((R, T)) * np.NAN
-    mat_plt_mature = np.zeros((R, T)) * np.NAN
-    for r in range(R):
-        for t in range(T):
-
-            leaf = mat[r, t]
-            if leaf is not None:
-
-                if leaf.info['pm_label'] == 'mature_leaf':
-
-                    mat_plt_mature[r, t] = 1
-
-                elif leaf.info['pm_label'] == 'growing_leaf':
-
-                    if t < T:
-                        # mat_plt[r, t] = 3 * np.random.random()
-                        previous_leaves = [mat[r, ti] for ti in range(t + 1, T) if mat[r, ti] is not None]
-                        next_leaves = [mat[r, ti] for ti in range(0, t) if mat[r, ti] is not None]
-                        if previous_leaves != []:
-                            d1 = phm_leaves_distance(leaf, previous_leaves[-1], method=2)
-                            pl1 = leaf.real_pl
-                            leaf_len = np.sum([np.linalg.norm(np.array(pl1[k]) - np.array(pl1[k + 1])) for k in
-                                               range(len(pl1) - 1)])
-                            xx.append(leaf_len)
-                            yy.append(d1)
-
-                        else:
-                            d1 = 0
-                        if next_leaves != []:
-                            d2 = phm_leaves_distance(leaf, next_leaves[0], method=2)
-                        else:
-                            d2 = 0
-                        if d1 == 0:
-                            d = d2
-                        elif d2 == 0:
-                            d = d1
-                        else:
-                            d = (d1 + d2) / 2
-                        mat_plt_growing[r, t] = d
-
-    plt.figure()
-    # vmax = np.nanmax(mat_plt)
-    vmax = 30
-    plt.imshow(mat_plt_growing[::-1], cmap='summer', vmin=0, vmax=vmax)
-    plt.imshow(mat_plt_mature[::-1], cmap='hot')
-    # plt.plot(np.array(limit)[:, 0] - 0.5, np.array(limit)[:, 1] - 0.5, 'r-')
-    plt.ylim(None, -0.5)
-
-    for r in range(R):
-        for t in range(T):
-            if mat_anot[::-1][r, t] == False:
-                plt.plot(t, r, 'r*', markersize=3)
 
 
 def permut_mature(plant, gap):
