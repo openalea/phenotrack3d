@@ -2,7 +2,12 @@
 import matplotlib.pyplot as plt #necessaire pour que plantGL fonctionne ??
 
 import numpy as np
-from openalea.plantgl import all as pgl
+
+has_pgl_display = True
+try:
+    from openalea.plantgl import all as pgl
+except ImportError:
+    has_pgl_display = False
 
 
 # TODO : use same PALETTE in all functions
@@ -80,26 +85,47 @@ def voxelgrid_to_pgl(vg,recul=0.0):
     return shapes
 
 
-def skeleton_to_pgl(skeleton,r_cylindre=3):
+def skeleton_to_pgl(skeleton, display_tips=True, stem_segment=None):
     shapes = []
-    col1 = pgl.Material(pgl.Color3(255, 150, 0))
-    col2 = pgl.Material(pgl.Color3(255, 0, 0))
-    for organ in skeleton.segments:
-        segment = organ.polyline
+    col1 = pgl.Material(pgl.Color3(0, 0, 255))
+    col2 = pgl.Material(pgl.Color3(255, 255, 0))
 
-        for k in range(len(segment) - 1):
+    segments = skeleton.segments
+    colors = [col1] * len(segments)
+    r_cylindres = [6] * len(segments)
+
+    if stem_segment:
+        segments = [s for s in segments if s.polyline[-1] != stem_segment.polyline[-1]]
+        segments.append(stem_segment)
+        r_cylindres = [6] * (len(segments) - 1) + [8]
+        colors = [col1] * (len(segments) - 1) + [col2]
+
+    for segment, col, r_cylindre in zip(segments, colors, r_cylindres):
+
+        pl = segment.polyline
+
+        for k in range(len(pl) - 1):
             # arguments cylindre : centre1, centre2, rayon, nbre segments d'un cercle.
-            cyl = pgl.Extrusion(pgl.Polyline([segment[k], segment[k + 1]]), pgl.Polyline2D.Circle(r_cylindre, 8))
+            cyl = pgl.Extrusion(pgl.Polyline([pl[k], pl[k + 1]]), pgl.Polyline2D.Circle(r_cylindre, 8))
             cyl.solid = True  # rajoute 2 cercles aux extremites du cylindre
-            cyl = pgl.Shape(cyl, col1)
+            cyl = pgl.Shape(cyl, col)
             shapes.append(cyl)
 
-        x, y, z = segment[-1]
-        tip = pgl.Sphere(30)
-        tip = pgl.Translated(x, y, z, tip)
-        tip = pgl.Shape(tip, col2)
-        shapes.append(tip)
+        if display_tips:
+            x, y, z = pl[-1]
+            tip = pgl.Sphere(15)
+            tip = pgl.Translated(x, y, z, tip)
+            tip = pgl.Shape(tip, col)
+            shapes.append(tip)
+
     return shapes
+
+
+def plot_sk(skeleton, stem_segment=None):
+    shapes = skeleton_to_pgl(skeleton, stem_segment=stem_segment)
+    print(len(shapes), ' shapes to plot')
+    scene = pgl.Scene(shapes)
+    pgl.Viewer.display(scene)
 
 
 def mesh_to_pgl(vertices,faces):
@@ -188,14 +214,6 @@ def vmsi_polylines_to_pgl(vmsi, li='all', coli='same', only_mature=False):
         shapes.append(cyl)
 
     return shapes
-
-
-
-def plot_sk(skeleton):
-    shapes = skeleton_to_pgl(skeleton)
-    print(len(shapes), ' shapes to plot')
-    scene = pgl.Scene(shapes)
-    pgl.Viewer.display(scene)
 
 
 def plot_vg_sk(vg,sk,img=False):
@@ -415,7 +433,7 @@ def plot_leaves(leaves,cluster,stem=False):
 
 
 
-def plot_snapshot(snapshot, colored=True, ranks=None):
+def plot_snapshot(snapshot, colored=True, ranks=None, stem=True):
 
     size = 15
 
@@ -459,17 +477,18 @@ def plot_snapshot(snapshot, colored=True, ranks=None):
             shapes.append(cyl)
 
     # stem
-    col2 = pgl.Material(pgl.Color3(0, 0, 0))
-    segment = snapshot.get_stem().get_highest_polyline().polyline
-    segment = [x for x in segment if x[2] <= z_stem]
-    for k in range(len(segment) - 1):
-        # arguments cylindre : centre1, centre2, rayon, nbre segments d'un cercle.
-        pos1 = np.array(segment[k]) + np.array([0, 0, h])
-        pos2 = np.array(segment[k + 1]) + np.array([0, 0, h])
-        cyl = pgl.Extrusion(pgl.Polyline([pos1, pos2]), pgl.Polyline2D.Circle(int(size * 1.3), 8))
-        cyl.solid = True  # rajoute 2 cercles aux extremites du cylindre
-        cyl = pgl.Shape(cyl, col2)
-        shapes.append(cyl)
+    if stem:
+        col2 = pgl.Material(pgl.Color3(0, 0, 0))
+        segment = snapshot.get_stem().get_highest_polyline().polyline
+        segment = [x for x in segment if x[2] <= z_stem]
+        for k in range(len(segment) - 1):
+            # arguments cylindre : centre1, centre2, rayon, nbre segments d'un cercle.
+            pos1 = np.array(segment[k]) + np.array([0, 0, h])
+            pos2 = np.array(segment[k + 1]) + np.array([0, 0, h])
+            cyl = pgl.Extrusion(pgl.Polyline([pos1, pos2]), pgl.Polyline2D.Circle(int(size * 1.3), 8))
+            cyl.solid = True  # rajoute 2 cercles aux extremites du cylindre
+            cyl = pgl.Shape(cyl, col2)
+            shapes.append(cyl)
 
     scene = pgl.Scene(shapes)
     pgl.Viewer.display(scene)
