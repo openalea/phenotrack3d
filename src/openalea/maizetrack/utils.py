@@ -5,12 +5,11 @@ import numpy as np
 
 from alinea.phenoarch.shooting_frame import get_shooting_frame
 
-################
-# NOT USED #####
-################
 from openalea.maizetrack.phenomenal_display import PALETTE
 from skimage import io
 
+
+##### based on phenomenal #####
 
 def shooting_frame_conversion(s_frame_name):
     # returns 2 parameters needed for this conversion :
@@ -26,26 +25,6 @@ def shooting_frame_conversion(s_frame_name):
 
     return ratio, pot_height
 
-
-def sigmoid(x0, k, x, min_, max_):
-    y = 1 / (1 + np.exp(-k * (x - x0)))
-    y = (y - np.min(y)) / (np.max(y) - np.min(y)) # [0,1]
-    y =  y*(max_ - min_) + min_ # [min_, max_]
-    return y
-
-
-def fit_sigmoid(params, x, y):
-    x0, k, min_ = params
-    y2 = sigmoid(x0, k, x, min_, np.max(y))
-    rmse = np.sqrt(np.mean((y - y2) ** 2))
-    return rmse
-
-
-##############
-##### USED ###
-##############
-
-##### based on phenomenal #####
 
 def phm3d_to_px2d(xyz, sf, angle=60):
 
@@ -163,12 +142,9 @@ def simplify(pl, n):
         return np.array([quantile_point(pl, q) for q in np.linspace(0, 1, n)])
 
 
-######
-### USED ? ###
-##############
+# ===================================================================================================================
 
-
-def best_leaf_angles(leaf, shooting_frame, angles, n=1):
+def best_leaf_angles(leaf, shooting_frame, angles=[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330], n=1):
     pl = leaf.real_longest_polyline()
 
     surfaces = dict()
@@ -190,7 +166,7 @@ def get_rgb(metainfo, angle, main_folder='rgb', plant_folder=True, save=True, si
         img_folder = main_folder + '/' + str(plantid)
     else:
         img_folder = main_folder
-    if not os.path.isdir(img_folder):
+    if not os.path.isdir(img_folder) and save:
         os.mkdir(img_folder)
 
     if side:
@@ -204,7 +180,6 @@ def get_rgb(metainfo, angle, main_folder='rgb', plant_folder=True, save=True, si
         i_angles = [i for i, a in enumerate(metainfo.camera_angle) if a == 0]
         i_angle = [i for i in i_angles if metainfo.view_type[i] == 'top'][0]
 
-    # TODO : 'plantid' or 'id' ??
     img_name = 'id{}_d{}_t{}_a{}.png'.format(plantid, metainfo.daydate, metainfo.task, angle)
     path = img_folder + '/' + img_name
 
@@ -237,3 +212,19 @@ def missing_data(vmsi):
             missing = True
 
     return missing
+
+# ===== used for parameter tuning (sequence alignment) ================================================================
+
+
+def dataset_mean_distance(w_h=0.03, w_l=0.004, step=1):
+    """
+    mean distance between consecutive leaves (spatially) in a small dataset
+    w_h=0.03, w_l=0.004 => d = 4.23
+    """
+    v = np.load('leaf_vectors.npy', allow_pickle=True)
+    dists = []
+    for vecs in v:
+        #vecs2 = np.array([[np.cos(a/360*2*np.pi), np.sin(a/360*2*np.pi), w_h * h] for h, _, a in vecs])
+        vecs2 = np.array([[np.cos(a / 360 * 2 * np.pi), np.sin(a / 360 * 2 * np.pi), w_h * h, w_l * l] for h, l, a in vecs])
+        dists += [np.linalg.norm(vecs2[k] - vecs2[k + step]) for k in range(len(vecs2) - step)]
+    return np.mean(dists)

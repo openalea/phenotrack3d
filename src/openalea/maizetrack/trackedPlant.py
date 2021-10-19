@@ -1,23 +1,28 @@
-# TODO : move annotation scripts + remove plantid attribute
+"""
+Classes for maize leaf tracking and rank attribution, in a time-series of Phenomenal 3D segmentation objects.
+//!\\ In the tracking algorithm, ranks start at 0. But in the final output (stored in the 'pm_leaf_number_tracking'
+attribute of each leaf), ranks start at 1.
+"""
 
 import os
 import numpy as np
 import pandas as pd
-from PIL import Image
-from matplotlib import pyplot as plt
+import warnings
 
 from openalea.maizetrack.alignment import multi_alignment, detect_abnormal_ranks, phm_leaves_distance
-
-from openalea.maizetrack.utils import simplify, rgb_and_polylines, get_rgb, missing_data
+from openalea.maizetrack.utils import simplify, get_rgb, missing_data
 from openalea.maizetrack.stem_correction import abnormal_stem
+from openalea.maizetrack.phenomenal_display import has_pgl_display, plot_leaves
+
 from openalea.phenomenal.object.voxelSegmentation import VoxelSegmentation
 from openalea.phenomenal.object.voxelOrgan import VoxelOrgan
 
-from openalea.maizetrack.phenomenal_display import has_pgl_display, plot_leaves
-import warnings
-
 
 class TrackedLeaf(VoxelOrgan):
+    """
+    class inherited from openalea.phenomenal.object.voxelOrgan.VoxelOrgan
+    Describe a leaf organ, with attributes specific to leaf tracking algorithm.
+    """
 
     def __init__(self, leaf):
         super().__init__(label=leaf.label, sub_label=leaf.sub_label)
@@ -26,14 +31,6 @@ class TrackedLeaf(VoxelOrgan):
 
         self.highest_pl = ()
         self.real_pl = ()
-
-        self.rank_annotation = None
-
-        # TODO : exact value of h_stem ??
-        # insertion height (starting from stem tip for growing leaves)
-        #h_stem = -700
-        # TODO : takes time..
-        #self.height = self.real_longest_polyline()[0][2] - h_stem
 
         self.azimuth = leaf.info['pm_azimuth_angle']
         if leaf.info['pm_label'] == 'mature_leaf':
@@ -47,125 +44,116 @@ class TrackedLeaf(VoxelOrgan):
             self.length = leaf.info['pm_length_with_speudo_stem']
             self.height = leaf.info['pm_z_base']
 
-        self.vec = [self.height, self.length, self.azimuth]
+        self.vec = np.array([])
+
+        self.rank_annotation = None
 
 
 class TrackedSnapshot(VoxelSegmentation):
+    """
+    class inherited from openalea.phenomenal.object.voxelSegmentation.VoxelSegmentation
+    Describe the plant segmentation from Phenomenal at a given time point, and associate it to its corresponding
+    metainfos. Describe the order of leaves, which is modified during leaf tracking.
+    """
 
     def __init__(self, vmsi, metainfo, order):
         super().__init__(voxels_size=vmsi.voxels_size)
         self.voxel_organs = vmsi.voxel_organs
         self.info = vmsi.info
 
-        # reset leaves initial order in "leaves", using the phenonemal ordering method (topology)
-        # from openalea.phenomenal.segmentation.maize_analysis import maize_growing_leaf_analysis_real_length
-        # mature_leafs = [(l, l.info["pm_z_base"]) for l in self.get_mature_leafs()]
-        # mature_leafs.sort(key=lambda x: x[1])
-        # growing_leafs = [(l, maize_growing_leaf_analysis_real_length(self, l)) for l in self.get_growing_leafs()]
-        # growing_leafs.sort(key=lambda x: x[1])
-        # for leaf_number, (l, _) in enumerate(mature_leafs + growing_leafs):
-        #     l.info["pm_leaf_number"] = leaf_number + 1
-
-        # initial leaves ordering with phenomenal order (given in leaf.info['pm_leaf_number'])
+        # list of TrackedLeaf objects
+        # (ordered in a sequence using phenomenal topological order, given in leaf.info['pm_leaf_number'])
         leaves = [self.get_leaf_order(k) for k in range(1, 1 + self.get_number_of_leaf())]
         self.leaves = [TrackedLeaf(leaf) for leaf in leaves]
 
-        self.metainfo = metainfo
+        # self.order gives the ranks of leaves in self.leaves.
+        # for example, if self.order[5] = 2, it means that self.leaves[2] is associated to rank 5+1=6.
+        # -1 = no leaf
         self.order = order
+
+        self.metainfo = metainfo
+
+        # not useful for the tracking algorithm itself, only used for ground-truth annotation, display, etc.
         self.image = dict()
         self.rank_annotation = [-2] * len(self.leaves)
 
-    def snapshot_ar(self):
-        # return np.array([l.vec for l in self.leaves])
-        s_vec = len(self.leaves[0].vec)
-        return np.array([self.leaves[i].vec if i != '-' else [np.NAN] * s_vec for i in self.order])
-        # TODO : used in align_mature, where i != '-' is not possible ?
-
-    # def add_gap(self, i_gaps):
-    #     for i in i_gaps:
-    #         self.order = self.order[:i] + ['-'] + self.order[i:]
-
-    def permute(self, order1, order2):
-        self.order[order1], self.order[order2] = self.order[order2], self.order[order1]
-
     def get_ranks(self):
+        """
+        list of ranks of leaves contained in self.leaves
+
+        small example :
+        self.leaves = [leaf1, leaf2, leaf3, leaf4]
+        self.order = [-1, -1, 0, 1, -1, 2, 3, -1]
+        ===> self.get_ranks() returns [2, 3, 5, 6]
+
+        In the tracking algorithm, ranks start at 0. But in the 'info' attribute of each leaf, ranks start at 1.
+        """
         return [self.order.index(i) if i in self.order else -1 for i, leaf in enumerate(self.leaves)]
 
 
 class TrackedPlant:
+    """
+    Class describing a time-series of TrackedSnapshot. It is used to track maize leaves over time and find their ranks.
+    """
 
     def __init__(self, snapshots, abnormal_vmsi_list, plantid):
 
+        # list of TrackedSnapshot objects
         self.snapshots = snapshots
-        self.abnormal_vmsi_list = abnormal_vmsi_list
-        self.plantid = plantid
-        self.var_names = ['height', 'length', 'azimuth']
 
+        # abnormals vmsi from TrackedPlant.load_and_check()
+        self.abnormal_vmsi_list = abnormal_vmsi_list
+
+        self.plantid = plantid
+
+        # init : no tracking yet, all leaf ranks equal to 0
         for vmsi in self.abnormal_vmsi_list:
             for leaf in vmsi.get_leafs():
                 leaf.info['pm_leaf_number_tracking'] = 0
 
-    # def standardization(self):
-    #
-    #     # height and length normalization
-    #     heights = np.array([leaf.vec[0] for snapshot in self.snapshots for leaf in snapshot.leaves])
-    #     lengths = np.array([leaf.vec[1] for snapshot in self.snapshots for leaf in snapshot.leaves])
-    #     for snapshot in self.snapshots:
-    #         for leaf in snapshot.leaves:
-    #             leaf.vec[0] = (leaf.vec[0] - np.mean(heights)) / (np.std(heights))
-    #             leaf.vec[1] = (leaf.vec[1] - np.mean(lengths)) / (np.std(lengths))
-    #
-    #     # azimuth [-180, 180] -> [-1, 1]
-    #     for snapshot in self.snapshots:
-    #         for leaf in snapshot.leaves:
-    #             leaf.vec[2] /= 180
-
-    # TODO : not here ?
-    def compute_vectors(self, w_h, w_l):
-        """ new method to compute x,y,z vectors """
-        for snapshot in self.snapshots:
-            for leaf in snapshot.leaves:
-                a = leaf.azimuth / 360 * 2 * np.pi
-                h = leaf.height
-                l = leaf.length
-                leaf.vec = np.array([np.cos(a), np.sin(a), w_h * h, w_l * l])
-
-    def simplify_polylines(self):
-
-        for snapshot in self.snapshots:
-
-            for leaf in snapshot.leaves:
-                leaf.highest_pl = simplify(leaf.get_highest_polyline().polyline, 50)
-                leaf.real_pl = simplify(leaf.real_longest_polyline(), 50)
+    # ===== method to load a TrackedPlant object ====================================================================
 
     @staticmethod
-    def load_and_check(vmsi_list, check_stem=True, discontinuity=5, new_method=False):
-        """ Update 13/09 : takes list of vmsi as input, each vmsi having a metainfo attribute"""
+    def load_and_check(vmsi_list, discontinuity=5.):
+        """
+        Load a TrackedPlant object from a list of vmsi + metainfos.
+        Check and set aside abnormal time points. Abnormal vmsi are stored in the 'abnormal_vmsi_list' attribute
+        of the TrackedPlant object created. Normal vmsi are converted in TrackedSnapshot objects and stored in the
+        'snapshots' attribute of the TrackedPlant object.
 
-        # TODO : arg json=None, ou on peut donner le json qui contient 3 infos : ref_time, ref_order, orders=M
+        Parameters
+        ----------
+        vmsi_list : list of openalea.phenomenal.object.voxelSegmentation.VoxelSegmentation (vmsi) objects
+            Each vmsi must have a 'metainfo' attributes
+        discontinuity : float
+            parameter to remove big time gaps in the time-series of segmented objects
 
-        # sort vmsi objects by time
+        Returns
+        -------
+        TrackedPlant object
+
+        """
+
+        # specific to Phenoarch / ZA17 plant naming system
+        plantid = int(vmsi_list[0].metainfo.plant[:4])
+
+        # ===== sort vmsi objects by time =================================================================
+
         timestamps = np.array([vmsi.metainfo.timestamp for vmsi in vmsi_list])
         order = sorted(range(len(timestamps)), key=lambda k: timestamps[k])
         vmsi_list = [vmsi_list[i] for i in order]
 
-        plantid = int(vmsi_list[0].metainfo.plant[:4])
+        # ===== anomaly detection =========================================================================
 
-        # check abnormal vmsi objects
         # a - remove vmsi with missing data
         checks_data = [not missing_data(v) for v in vmsi_list]
         print('{} vmsi to remove because of missing data'.format(len(checks_data) - sum(checks_data)))
         # b - vmsi with stem shape problems
-        if check_stem:
-            checks_stem = [not b for b in abnormal_stem(vmsi_list)]
-            print('{} vmsi to remove because of stem shape abnormality'.format(len(checks_stem) - sum(checks_stem)))
-            print([vmsi_list[i].metainfo.daydate for i in range(len(vmsi_list)) if checks_stem[i] == False])
-        else:
-            checks_stem = [True] * len(vmsi_list)
-            print('no stem shape abnormality checking')
+        checks_stem = [not b for b in abnormal_stem(vmsi_list)]
+        print('{} vmsi to remove because of stem shape abnormality'.format(len(checks_stem) - sum(checks_stem)))
 
         # check if there is no big time gap in the time-series
-        timestamps2 = [vmsi.metainfo.timestamp for vmsi in vmsi_list] # vmsi_list is ordered this time
+        timestamps2 = [vmsi.metainfo.timestamp for vmsi in vmsi_list]  # vmsi_list is ordered this time
         checks_continuity = np.array([True] * len(vmsi_list))
         dt_mean = np.mean(np.diff(timestamps2))
         for i in range(1, len(timestamps2)):
@@ -175,6 +163,8 @@ class TrackedPlant:
 
         checks = list((np.array(checks_data) * np.array(checks_stem) * np.array(checks_continuity)).astype(int))
 
+        # ===== create the TrackedPlant object =================================================================
+
         # init alignment matrix
         normal_vmsi_list = [vmsi for check, vmsi in zip(checks, vmsi_list) if check]
         abnormal_vmsi_list = [vmsi for check, vmsi in zip(checks, vmsi_list) if not check]
@@ -182,28 +172,224 @@ class TrackedPlant:
         max_len = max([len(order) for order in orders])
         orders = [order + [-1] * (max_len - len(order)) for order in orders]
 
-        print('creating snapshots / leaves')
         snapshots = [TrackedSnapshot(vmsi, vmsi.metainfo, order) for vmsi, order in zip(normal_vmsi_list, orders)]
-        print('ok')
+
         trackedplant = TrackedPlant(snapshots=snapshots, abnormal_vmsi_list=abnormal_vmsi_list, plantid=plantid)
 
         return trackedplant
+
+    # ===== Main methods used for the tracking algorith ========================================================
+
+    def compute_vectors(self, w_h, w_l):
+        """ computed a vector for each leaf of each snapshot. Used for the alignment of mature leaves """
+        for snapshot in self.snapshots:
+            for leaf in snapshot.leaves:
+                a = leaf.azimuth / 360 * 2 * np.pi  # [0, 360] interval --> [-1, 1] interval
+                leaf.vec = np.array([np.cos(a), np.sin(a), w_h * leaf.height, w_l * leaf.length])
+
+    def simplify_polylines(self, new_length=50):
+        """ simplify the polyline of each leaf in each snapshot (max number of points = 'new_length'), for a faster
+         computation of growing leaves tracking """
+        for snapshot in self.snapshots:
+            for leaf in snapshot.leaves:
+                # polyline starting from insertion point
+                leaf.highest_pl = simplify(leaf.get_highest_polyline().polyline, new_length)
+                # polyline starting from stem base
+                leaf.real_pl = simplify(leaf.real_longest_polyline(), new_length)
+
+    def get_ref_skeleton(self, display=False, nmax=15):
+        """
+        Compute a median skeleton {rank : leaf}.
+        For each rank, the leaf whose vector is less distant to all other leaves from the same ranks is selected.
+
+        Parameters
+        ----------
+        display : bool
+            optionnal 3D display (True or False)
+        nmax : int
+            max number of leaves considered at a given rank (to avoid old leaves which can have senescence)
+
+        Returns
+        -------
+
+        """
+
+        ref_skeleton = dict()
+
+        ranks = range(len(self.snapshots[0].order))
+        for rank in ranks:
+            # all matures leaves for this rank
+            leaves = [s.leaves[s.order[rank]] for s in self.snapshots if s.order[rank] != -1]
+            leaves = [leaf for leaf in leaves if leaf.info['pm_label'] == 'mature_leaf']
+
+            # remove old leaves (that could have a different shape)
+            leaves = leaves[:nmax]
+
+            vec_mean = np.mean(np.array([l.vec for l in leaves]), axis=0)
+            dists = [np.sum(abs(l.vec - vec_mean)) for l in leaves]
+
+            ref_skeleton[rank] = leaves[np.argmin(dists)]
+
+        if display:
+            if has_pgl_display:
+                plot_leaves([ref_skeleton[r] for r in ranks], ranks)
+            else:
+                warnings.warn('PlantGL not available')
+
+        return ref_skeleton
+
+    def tracking_info_update(self):
+        for snapshot in self.snapshots:
+            ranks = snapshot.get_ranks()
+            for leaf, rank in zip(snapshot.leaves, ranks):
+                leaf.info['pm_leaf_number_tracking'] = rank + 1
+
+    def align_mature(self, gap=12.35, gap_extremity_factor=0.5, direction=1, n_previous=5, w_h=0.03, w_l=0.004,
+                     rank_attribution=True):
+
+        # Step 1 - multi sequence alignment
+        # ==============================================
+
+        self.compute_vectors(w_h=w_h, w_l=w_l)
+
+        # init order attribute of each snapshot, with only mature leaves:
+        for snapshot in self.snapshots:
+            snapshot.order = [i for i, l in enumerate(snapshot.leaves) if l.info['pm_label'] == 'mature_leaf']
+
+        # time-series of sequences of vectors (sequences have different lengths, all vectors have the same size)
+        sequences = [np.array([snapshot.leaves[i].vec for i in snapshot.order]) for snapshot in self.snapshots]
+
+        # sequence alignment
+        alignment_matrix = multi_alignment(sequences, gap, gap_extremity_factor, direction, n_previous)
+
+        # update order attributes
+        for i, order in enumerate(alignment_matrix):
+            self.snapshots[i].order = list(order)
+
+        # Step 2 - abnormal ranks removing
+        # ==============================================
+
+        if rank_attribution:
+
+            abnormal_ranks = detect_abnormal_ranks(alignment_matrix)
+
+            # update order attributes
+            for snapshot in self.snapshots:
+                snapshot.order = [e for i, e in enumerate(snapshot.order) if i not in abnormal_ranks]
+
+            print('{}/{} ranks removed after sequence alignment'.format(len(abnormal_ranks), len(alignment_matrix[0])))
+
+        # ============ saving results in leaf.info attributes
+
+        # update leaf.info
+        self.tracking_info_update()
+
+        return alignment_matrix
+
+    def align_growing(self):
+        """
+        Tracking of growing leaves over time.
+        To use AFTER self.align_mature()
+        """
+
+        self.simplify_polylines()
+
+        mature_ref = self.get_ref_skeleton(display=False)
+
+        for r in mature_ref.keys():
+
+            # init leaf ref
+            leaf_ref = mature_ref[r]
+
+            # day t when leaf starts to be mature
+            t_mature = next((t for t, snapshot in enumerate(self.snapshots) if snapshot.order[r] != -1))
+
+            for t in range(t_mature)[::-1]:
+
+                snapshot = self.snapshots[t]
+                g_growing = [g for g, leaf in enumerate(snapshot.leaves) if g not in snapshot.order]
+
+                if g_growing != []:
+
+                    g_min, d_min = -1, float('inf')
+                    for g in g_growing:
+                        leaf_candidate = snapshot.leaves[g]
+                        d = phm_leaves_distance(leaf_ref=leaf_ref, leaf_candidate=leaf_candidate, method=2)
+                        if d < d_min:
+                            g_min, d_min = g, d
+
+                    self.snapshots[t].order[r] = g_min
+
+        # update leaf.info
+        self.tracking_info_update()
+
+    # ===== methods to output the full result of the tracking ==================================================
+
+    def dump(self):
+        """ convert TrackedPlant object in a list of vmsi (normals and abnormals) After tracking, each leaf of each vmsi
+        has its rank stored it its 'info' attribute """
+
+        res = {}
+        for snapshot in self.snapshots:
+            # snapshot to vmsi conversion
+            vmsi = VoxelSegmentation(voxels_size=snapshot.voxels_size)
+            vmsi.voxel_organs = snapshot.voxel_organs
+            vmsi.info = snapshot.info
+
+            res[snapshot.metainfo.timestamp] = vmsi
+
+        for vmsi in self.abnormal_vmsi_list:
+            res[vmsi.metainfo.timestamp] = vmsi
+
+        return res
+
+    def get_dataframe(self, load_anot=True):
+        """
+        Summarize data for all snapshots that were tracked, in a dataframe
+        """
+
+        # if a ground-truth annotation is found, it is saved in the dataframe
+        if load_anot:
+            self.load_rank_annotation()
+
+        df = []
+
+        for snapshot in self.snapshots:
+
+            annotation = np.array(snapshot.rank_annotation) + 1
+            # pred = np.array(snapshot.get_ranks()) + 1
+
+            for i, leaf in enumerate(snapshot.leaves):
+                mature = leaf.info['pm_label'] == 'mature_leaf'
+                h, l, a = (leaf.height, leaf.length, leaf.azimuth)
+                df.append([self.plantid, snapshot.metainfo.timestamp, mature,
+                           leaf.info['pm_leaf_number'], leaf.info['pm_leaf_number_tracking'], annotation[i],
+                           h, l, a, leaf.info['pm_length_extended']])
+
+        # l = normal phenomenal length. l_extended = length after leaf extension
+        df = pd.DataFrame(df, columns=['plantid', 'timestamp', 'mature',
+                                       'rank_phenomenal', 'rank_tracking', 'rank_annotation',
+                                       'h', 'l', 'a', 'l_extended'])
+
+        return df
+
+    # ===== Methods for visualization and management of ground-truth annotations ==================================
 
     def load_images(self, angle):
 
         for snapshot in self.snapshots:
             snapshot.image[angle], _ = get_rgb(metainfo=snapshot.metainfo, angle=angle)
 
-    # TODO : move in rank_annotation ?
-    def load_rank_annotation(self):
+    def load_rank_annotation(self, folder='rank_annotation/'):
         """
-        Load rank annotation for each leaf of each snapshot (-2 = not annotated, -1 = anomaly, 0 = rank 1, 1 = rank 2,
-        etc.) Each annotation is associated to the x,y,z tip position of its corresponding leaf, in a csv
+        Load rank annotation for each leaf of each snapshot (-2 = not annotated or annotation not found, -1 = anomaly,
+        0 = rank 1, 1 = rank 2, etc.) Each annotation is associated to the x,y,z tip position of its corresponding leaf,
+        in a csv.
         """
 
-        # TODO : don't stock annotated ranks in both snapshot and leaf..
+        # TODO : don't stock annotated ranks in both snapshot and leaf ?
 
-        df_path = 'rank_annotation/rank_annotation_{}.csv'.format(self.plantid)
+        df_path = folder + 'rank_annotation_{}.csv'.format(self.plantid)
 
         if os.path.isfile(df_path):
             df = pd.read_csv(df_path)
@@ -231,8 +417,10 @@ class TrackedPlant:
                             snapshot.rank_annotation.append(dftip.iloc[0]['rank'])
                             leaf.rank_annotation = dftip.iloc[0]['rank']
 
-    # TODO : move in rank_annotation ?
-    def save_rank_annotation(self):
+    def save_rank_annotation(self, folder='rank_annotation/'):
+        """
+        Create and save a csv containing rank annotations
+        """
 
         df = []
 
@@ -253,190 +441,10 @@ class TrackedPlant:
         df = pd.DataFrame(df, columns=['task', 'leaf_tip', 'rank'])
 
         if save:
-            df.to_csv('rank_annotation/rank_annotation_{}.csv'.format(self.plantid), index=False)
-
-    def get_dataframe(self, load_anot=True):
-        """
-        Summarize data for all snapshots that were tracked, in a dataframe
-        """
-
-        if load_anot:
-            self.load_rank_annotation()
-
-        df = []
-
-        for snapshot in self.snapshots:
-
-            annotation = np.array(snapshot.rank_annotation) + 1
-            #pred = np.array(snapshot.get_ranks()) + 1
-
-            for i, leaf in enumerate(snapshot.leaves):
-
-                mature = leaf.info['pm_label'] == 'mature_leaf'
-                h, l, a = (leaf.height, leaf.length, leaf.azimuth)
-                df.append([self.plantid, snapshot.metainfo.timestamp, mature,
-                                       leaf.info['pm_leaf_number'], leaf.info['pm_leaf_number_tracking'], annotation[i],
-                                       h, l, a, leaf.info['pm_length_extended']])
-
-        df = pd.DataFrame(df, columns=['plantid', 'timestamp', 'mature',
-                                   'rank_phenomenal', 'rank_tracking', 'rank_annotation',
-                                   'h', 'l', 'a', 'l_extended'])
-
-        return df
-
-    def evaluate_tracking(self):
-
-        df = self.get_dataframe()
-        a = len(df[(df['mature'] == True) & (df['obs'] == df['pred'])])
-        b = len(df[df['mature'] == True])
-        print('{}/{} mature leaves correclty classified'.format(a, b))
-        c = len(df[(df['mature'] == False) & (df['obs'] == df['pred'])])
-        d = len(df[df['mature'] == False])
-        print('{}/{} growing leaves correclty classified'.format(c, d))
-
-    def motif_ar(self, i_snapshots):
-        # return a 3D array of shape (nb of snapshots, snapshot/motif length, leaf vec length)
-        # all input snapshots need to have the same length !!
-
-        snp_ar = [self.snapshots[i].snapshot_ar() for i in i_snapshots]
-
-        if not all([len(k) == len(snp_ar[0]) for k in snp_ar]):
-            print('motif_ar() : different lengths !')
-            return
-
-        return np.stack(snp_ar)
-
-    # def update(self, i_snapshots, r):
-    #
-    #     new_gaps = [g for g in range(len(r)) if r[g] == '-']
-    #     if new_gaps != []:
-    #         for i in i_snapshots:
-    #             self.snapshots[i].add_gap(new_gaps)
-
-    # def alignment_matrix(self):
-    #
-    #     mat = [snapshot.order for snapshot in self.snapshots]
-    #     mat = [[int(e != '-') for e in sp] for sp in mat]
-    #     return mat
-
-    def get_ref_skeleton(self, display=False):
-
-        ref_skeleton = dict()
-
-        ranks = range(len(self.snapshots[0].order))
-        for rank in ranks:
-
-            leaves = [s.leaves[s.order[rank]] for s in self.snapshots if s.order[rank] != -1]
-            leaves = [leaf for leaf in leaves if leaf.info['pm_label'] == 'mature_leaf']
-
-            # TODO : bricolage
-            # remove old leaves (that could have a different shape)
-            leaves = leaves[:15]
-            # remove young leaves (that could have a different shape)
-            if len(leaves) > 5:
-                leaves = leaves[2:]
-
-            vec_mean = np.mean(np.array([l.vec for l in leaves]), axis=0)
-            dists = [np.sum(abs(l.vec - vec_mean)) for l in leaves]
-
-            ref_skeleton[rank] = leaves[np.argmin(dists)]
-
-        if display:
-            if has_pgl_display:
-                plot_leaves([ref_skeleton[r] for r in ranks], ranks)
-            else:
-                warnings.warn('PlantGL not available')
-
-        return ref_skeleton
-
-    def tracking_info_update(self):
-        for snapshot in self.snapshots:
-            ranks = snapshot.get_ranks()
-            for leaf, rank in zip(snapshot.leaves, ranks):
-                leaf.info['pm_leaf_number_tracking'] = rank + 1
-
-    def align_mature(self, gap=1.5, gap_extremity_factor=0.5, direction=1, n_previous=5, w_h=0.001, w_l=0.001,
-                     rank_attribution=True):
-
-        # Step 1 - multi sequence alignment
-        # ==============================================
-
-        self.compute_vectors(w_h=w_h, w_l=w_l)
-
-        # init order attribute of each snapshot, with only mature leaves:
-        for snapshot in self.snapshots:
-            snapshot.order = [i for i, l in enumerate(snapshot.leaves) if l.info['pm_label'] == 'mature_leaf']
-
-        sequences = [snapshot.snapshot_ar() for snapshot in self.snapshots]
-
-        alignment_matrix = multi_alignment(sequences, gap, gap_extremity_factor, direction, n_previous)
-
-        # update order attributes
-        for i, order in enumerate(alignment_matrix):
-            self.snapshots[i].order = list(order)
-
-        # Step 2 - abnormal ranks removing
-        # ==============================================
-
-        if rank_attribution:
-
-            abnormal_ranks = detect_abnormal_ranks(alignment_matrix)
-
-            # update order attributes
-            for snapshot in self.snapshots:
-                snapshot.order = [e for i, e in enumerate(snapshot.order) if i not in abnormal_ranks]
-
-            print('{}/{} ranks removed'.format(len(abnormal_ranks), len(alignment_matrix[0])))
-
-        # ============ saving results in leaf.info attributes
-
-        # update leaf.info
-        self.tracking_info_update()
-
-        return alignment_matrix
-
-    def align_growing(self):
-
-        self.simplify_polylines()
-
-        mature_ref = self.get_ref_skeleton(display=False)
-
-        for r in mature_ref.keys():
-
-            # init leaf ref
-            leaf_ref = mature_ref[r]
-
-            # day t when leaf starts to be mature
-            t_mature = next((t for t, snapshot in enumerate(self.snapshots) if snapshot.order[r] != -1))
-
-            for t in range(t_mature)[::-1]:
-
-                snapshot = self.snapshots[t]
-                g_growing = [g for g in range(len(snapshot.leaves)) if g not in snapshot.order]
-
-                # plot_leaves([leaf_ref] + [snapshot.leaves[g] for g in g_growing], [-1] + [k for k in range(len(g_growing))])
-
-                if g_growing != []:
-
-                    g_min, d_min = -1, float('inf')
-                    for g in g_growing:
-                        leaf_candidate = snapshot.leaves[g]
-                        d = phm_leaves_distance(leaf_ref=leaf_ref, leaf_candidate=leaf_candidate, method=2)
-                        if d < d_min:
-                            g_min, d_min = g, d
-
-                    if g_min == -1:
-                        print('problem : ', t, r, g_growing, d)
-
-                    # print('rank = {}, t = {}, d = {}, (g = {})'.format(r, t, round(d_min, 2), g_min))
-                    if self.snapshots[t].order[r] != -1:
-                        print(' !! ')
-                    self.snapshots[t].order[r] = g_min
-
-        # update leaf.info
-        self.tracking_info_update()
+            df.to_csv(folder + 'rank_annotation_{}.csv'.format(self.plantid), index=False)
 
     def display(self, dates=None, only_mature=False):
+        """ 3D display using PlantGL (color=rank) """
 
         if dates is None:
             snapshots = self.snapshots
@@ -453,190 +461,7 @@ class TrackedPlant:
             leaves = [leaves[i] for i in i_mature]
             ranks = [ranks[i] for i in i_mature]
 
-        plot_leaves(leaves, ranks)
-
-    def save_gif(self, angle, path, fps=1):
-
-        self.load_images(angle)
-
-        imgs = []
-        for snapshot in self.snapshots:
-
-            ranks = snapshot.get_ranks()
-            img, _ = rgb_and_polylines(snapshot, angle=angle, ranks=ranks)
-            imgs.append(img)
-
-        imgs_gif = [Image.fromarray(np.uint8(img)) for img in imgs]
-        imgs_gif[0].save(path,
-                         save_all=True,
-                         append_images=imgs_gif[1:],
-                         optimize=True,
-                         duration=1000 / fps,
-                         loop=0)
-
-    def dump(self):
-
-        res = {}
-        for snapshot in self.snapshots:
-            # ranks = snapshot.get_ranks()
-            # for leaf, rank in zip(snapshot.leaves, ranks):
-            #     leaf.info['pm_leaf_number_tracking'] = rank + 1
-
-            # snapshot to vmsi conversion
-            vmsi = VoxelSegmentation(voxels_size=snapshot.voxels_size)
-            vmsi.voxel_organs = snapshot.voxel_organs
-            vmsi.info = snapshot.info
-
-            res[snapshot.metainfo.timestamp] = vmsi
-
-        for vmsi in self.abnormal_vmsi_list:
-            # for leaf in vmsi.get_leafs():
-            #     leaf.info['pm_leaf_number_tracking'] = 0
-
-            res[vmsi.metainfo.timestamp] = vmsi
-
-        return res
-
-
-#######################################################################
-# Deprecated functions
-#######################################################################
-
-
-
-def permut_mature(plant, gap):
-
-    # TODO : doesnt work
-
-    dt = 7
-    permutation_penalty = 0.7
-    direction = 1
-    for i in range(len(plant.snapshots))[::direction]:
-
-        xi = np.concatenate(
-            (np.arange(max(i - dt, 0), i), np.arange(i + 1, min(i + 1 + dt, len(plant.snapshots)))))
-        yi = [i]
-
-        X = plant.motif_ar(xi)  # ref
-        Y = plant.motif_ar(yi)  # to try permutations
-
-        ref_score = nw_score(X, Y, gap)
-
-        i_leaves = [i for i, l in enumerate(Y[0]) if not all(np.isnan(l))]
-
-        if len(i_leaves) > 1:  # can not permute if only 1 leaf in Y
-            for k in range(len(i_leaves) - 1):
-                Y2 = Y.copy()
-                Y2[0][[i_leaves[k], i_leaves[k + 1]]] = Y2[0][[i_leaves[k + 1], i_leaves[k]]]
-                score = nw_score(X, Y2, gap)
-                if score < ref_score:
-                    print('{} : ranks {} & {}. Score gain : {}. Enough to permute : {}'.format(
-                        plant.snapshots[i].metainfo.daydate,
-                        i_leaves[k],
-                        i_leaves[k + 1],
-                        round(ref_score - score, 1),
-                        (score + permutation_penalty < ref_score)
-                        ))
-
-                    if score + permutation_penalty < ref_score:
-                        # i_leaves[k] = position in sq.order of leaf
-                        plant.snapshots[i].permute(i_leaves[k], i_leaves[k + 1])
-
-
-def deprecated_align_growing(plant):
-
-    # TODO : doesn't work
-
-    mature_ref, _ = plant.get_ref_skeleton()
-
-    for i_seq in range(len(plant.snapshots))[::-1]:
-
-        # the 2 sequences to compare
-        seq_ref = plant.snapshots[i_seq]
-        seq_next = plant.snapshots[i_seq - 1]
-
-        # plantid of growing leaves than can be ordered.
-        g_growing = [g for g, l in enumerate(seq_next.leaves) if l.info['pm_label'] == 'growing_leaf']
-
-        # where theses leaves can be put
-        i_orders = []
-        for i in range(len(seq_ref.order)):
-            if seq_ref.order[i] != '-' and seq_next.order[i] == '-':
-                if plant.alignment_reference()[i] != -1:  # to not add leaves to a "gap rank"
-                    i_orders.append(i)
-
-        # TODO bricolage !
-        for i_order in i_orders:
-            if i_order + 5 < max(i_orders):
-                i_orders.remove(i_order)
-
-        plot_ = False
-        if plot_:
-            Lg = [seq_next.leaves[g] for g in g_growing]
-            Ls = [seq_ref.leaves[seq_ref.order[i_order]] for i_order in i_orders]
-            # plot_leaves(Lg + Ls, [-1] * len(Lg) + [plant.alignment_reference()[i_order] for i_order in i_orders])
-
-        print('starting')
-        for i_order in i_orders:
-
-            leaf_ref = seq_ref.leaves[seq_ref.order[i_order]]
-            # si mature, tant qu'a faire autant selectionner la "meilleure" = celle du skeleton de ref
-            if leaf_ref.info['pm_label'] == 'mature_leaf':
-                leaf_ref = mature_ref[i_order]
-
-            g_min, d_min = -1, 5000000
-
-            if g_growing != []:  # if there are still some leaves to order
-
-                for g in g_growing:
-                    leaf_next = seq_next.leaves[g]
-                    d = phm_leaves_distance(leaf_ref, leaf_next)
-                    if d < d_min:
-                        g_min, d_min = g, d
-
-                print('New leaf (plantid {}) in snapshot {} at rank {} (dist = {})'.format(g_min,
-                                                                                           seq_next.metainfo.daydate,
-                                                                                           i_order,
-                                                                                           round(d_min, 1)))
-                plant.snapshots[i_seq - 1].order[i_order] = g_min
-
-                # remove ordered leaf from non-ordered list
-                g_growing.remove(g_min)
-
-        # tempo
-        print('done !')
-        i_seq -= 1
-        print(i_seq, i_seq - 1)
-
-
-def iterative_mature(plant, gap):
-
-    # TODO : doesn't work
-
-    # ITERATIVE
-    dt = 5
-    direction = 1
-    print('iterative, direction = ', direction)
-    for i in range(len(plant.snapshots))[::direction]:
-        xi = np.concatenate((np.arange(max(i - dt, 0), i), np.arange(i + 1, min(i + 1 + dt, len(plant.snapshots)))))
-        yi = [i]
-
-        X = plant.motif_ar(xi)  # ref
-        Y = plant.motif_ar(yi)  # to try permutations
-        Y = np.array([[list(y) for y in Y[0] if not all(np.isnan(y))]])  # remove gaps
-
-        rx, ry = needleman_wunsch(X, Y, gap, gap_extremity=gap * 1)
-
-        # TODO : and if rx changes ???????
-
-        if ry != plant.snapshots[i].order:
-            # TODO : a revoir, a coder plus proprement
-            i_leaves = np.array([k for k in plant.snapshots[i].order if k != '-'])
-            i_ry = np.array([i for i in range(len(ry)) if ry[i] != '-'])
-            for ii in range(len(i_ry)):
-                ry[i_ry[ii]] = i_leaves[ii]
-            if ry != plant.snapshots[i].order:
-                plant.snapshots[i].order = ry
-                print('Update', plant.snapshots[i].metainfo.daydate)
-
-
+        if has_pgl_display:
+            plot_leaves(leaves, ranks)
+        else:
+            warnings.warn('PlantGL not available')

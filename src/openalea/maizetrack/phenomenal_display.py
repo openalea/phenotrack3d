@@ -1,6 +1,5 @@
 # %gui qt
-import matplotlib.pyplot as plt #necessaire pour que plantGL fonctionne ??
-
+import matplotlib.pyplot as plt
 import numpy as np
 
 has_pgl_display = True
@@ -8,9 +7,6 @@ try:
     from openalea.plantgl import all as pgl
 except ImportError:
     has_pgl_display = False
-
-
-# TODO : use same PALETTE in all functions
 
 PALETTE = np.array(
     [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [204, 121, 167], [0, 158, 115],
@@ -20,75 +16,26 @@ PALETTE = np.array(
 PALETTE = 3 * list(PALETTE) + [[255, 255, 255]]
 
 
+def plot_vg(vg, col=(60, 60, 60)):
 
-def generic_plot(objects, col=False):
-
-    palette = np.array(
-        [[255,255,255], [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [255, 0, 255], [0, 255, 255],
-         [0, 100, 255], [0, 255, 100], [100, 0, 255], [100, 255, 0], [255, 0, 100], [255, 100, 0]])
-
+    size = vg.voxels_size
     shapes = []
-
-    for i, obj in enumerate(objects):
-
-        size = 4
-        if col:
-            r, g, b = palette[i]
-        else:
-            r, g, b = 255, 255, 255
-        m = pgl.Material(pgl.Color3(int(r), int(g), int(b)))
-        for x, y, z in obj:
-            b = pgl.Box(size, size, size)
-            b = pgl.Translated(x + i, y + i, z + i, b)
-            b = pgl.Shape(b, m)
-            shapes.append(b)
-
-    scene = pgl.Scene(shapes)
-    pgl.Viewer.display(scene)
-
-
-
-
-
-def plot2(vg):
-    shapes = voxelgrid_to_pgl(vg)
-    print(len(shapes), ' shapes to plot')
-    shapes += image_to_pgl('ZM4363/bin/side/90.png', (2048,2448))
-    scene = pgl.Scene(shapes)
-    pgl.Viewer.display(scene)
-
-
-def image_to_pgl(path, points):
-    indices = [(0, 1, 2, 3)]
-    background = pgl.QuadSet(points, indices)
-    texture = pgl.ImageTexture(path)
-    background.texCoordList = [(0, 0), (1, 0), (1, 1), (0, 1)]
-    background.texCoordIndexList = [(0, 1, 2, 3)]
-    plant2d = pgl.Shape(background, texture)
-    shapes = [plant2d]
-    #scene = pgl.Scene(shapes)
-    return shapes
-
-def voxelgrid_to_pgl(vg,recul=0.0):
-    dezoom = 1
-    remonte = 0
-    size = vg.voxels_size/dezoom
-    shapes = []
-    m = pgl.Material(pgl.Color3(60, 60, 60))
+    m = pgl.Material(pgl.Color3(int(col[0]), int(col[1]), int(col[2])))
     #m = pgl.Material(pgl.Color3(30, 170, 0))
     for x, y, z in vg.voxels_position:
         b = pgl.Box(size, size, size)
-        vx = pgl.Translated(x/dezoom, y/dezoom, (z + remonte)/dezoom, b)
-        vx = pgl.Translated(0, recul, 0, vx)
+        vx = pgl.Translated(x, y, z, b)
         vx = pgl.Shape(vx, m)
         shapes.append(vx)
-    return shapes
+
+    scene = pgl.Scene(shapes)
+    pgl.Viewer.display(scene)
 
 
-def skeleton_to_pgl(skeleton, display_tips=True, stem_segment=None):
+def plot_sk(skeleton, display_tips=True, stem_segment=None):
     shapes = []
-    col1 = pgl.Material(pgl.Color3(0, 0, 255))
-    col2 = pgl.Material(pgl.Color3(255, 255, 0))
+    col1 = pgl.Material(pgl.Color3(255, 0, 0))
+    col2 = pgl.Material(pgl.Color3(255, 0, 0))
 
     segments = skeleton.segments
     colors = [col1] * len(segments)
@@ -118,26 +65,8 @@ def skeleton_to_pgl(skeleton, display_tips=True, stem_segment=None):
             tip = pgl.Shape(tip, col)
             shapes.append(tip)
 
-    return shapes
-
-
-def plot_sk(skeleton, stem_segment=None):
-    shapes = skeleton_to_pgl(skeleton, stem_segment=stem_segment)
-    print(len(shapes), ' shapes to plot')
     scene = pgl.Scene(shapes)
     pgl.Viewer.display(scene)
-
-
-def mesh_to_pgl(vertices,faces):
-    h = 700 # hauteur entre le sol et la camera (mm)
-    shapes = []
-    for i1,i2,i3 in faces:
-        points = np.array([vertices[i1], vertices[i2], vertices[i3]])
-        points += np.array([0,0,h])
-        triangle = pgl.TriangleSet(points, [(0, 1, 2)])
-        shapes.append(pgl.Shape(triangle))
-    return shapes
-
 
 
 def vmsi_polylines_to_pgl(vmsi, li='all', coli='same', only_mature=False):
@@ -216,32 +145,6 @@ def vmsi_polylines_to_pgl(vmsi, li='all', coli='same', only_mature=False):
     return shapes
 
 
-def plot_vg_sk(vg,sk,img=False):
-
-    # skeleton + voxelgrid
-    shapes_vg = voxelgrid_to_pgl(vg,recul=-100)
-    shapes_sk = skeleton_to_pgl(sk, r_cylindre=10)
-    shapes = shapes_vg + shapes_sk
-    if img:
-        # image 90deg
-        x, z = (2048, 2448)
-        recul = 1000
-        points = [(-x / 2, -recul, -z / 2), (x / 2, -recul, -z / 2), (x / 2, -recul, z / 2),
-                  (-x / 2, -recul, z / 2)]  # image dans le plan x/z, centrée au point 0,0,0
-        shapes += image_to_pgl('ZM4363/bin/side/90.png', points)
-
-        # image 0deg
-        points = [(-x / 2, -recul+x, -z / 2), (-x / 2, -recul, -z / 2), (-x / 2, -recul, z / 2),
-                  (-x / 2, -recul+x, z / 2)]  # image dans le plan x/z, centrée au point 0,0,0
-        shapes += image_to_pgl('ZM4363/bin/side/0.png', points)
-
-    print(len(shapes), ' shapes to plot')
-    scene = pgl.Scene(shapes)
-    pgl.Viewer.display(scene)
-
-#plot_sq()
-
-
 # TODO : remove l, col
 def plot_vmsi(vmsi_list, l=[], col=[], only_mature=False):
     shapes = []
@@ -262,10 +165,6 @@ def plot_vmsi(vmsi_list, l=[], col=[], only_mature=False):
     print(len(shapes), ' shapes to plot')
     scene = pgl.Scene(shapes)
     pgl.Viewer.display(scene)
-
-
-
-
 
 
 def plot_vmsi_voxel(vmsi, ranks=None):
@@ -341,57 +240,6 @@ def plot_vmsi_voxel(vmsi, ranks=None):
     pgl.Viewer.display(scene)
 
 
-
-
-
-
-
-
-
-
-
-def plot_vg(vg):
-    shapes = voxelgrid_to_pgl(vg)
-    scene = pgl.Scene(shapes)
-    pgl.Viewer.display(scene)
-
-
-def plot_comparaison(vmsi, model_scene, model_json):
-    #shapes = mesh_to_pgl(vertices, faces)
-    shapes = vmsi_polylines_to_pgl(vmsi)
-
-    # cereals leaf tips
-    for polyline in model_json['leaf_polylines']:
-        col2 = pgl.Material(pgl.Color3(255, 0, 0))
-        x,y,z,_ = polyline[-1]
-        tip = pgl.Sphere(3)
-        tip = pgl.Translated(x, y, z, tip)
-        tip = pgl.Shape(tip, col2)
-        shapes.append(tip)
-
-    print(len(shapes), 'shapes to plot')
-    shapes = pgl.Scene(shapes)
-    scene = pgl.Scene([shapes,model_scene])
-    pgl.Viewer.display(scene)
-
-
-def plot_simplemaize(model_scene, model_json):
-    shapes = []
-
-    for polyline in model_json['leaf_polylines']:
-        col2 = pgl.Material(pgl.Color3(255, 0, 0))
-        x,y,z,_ = polyline[-1]
-        tip = pgl.Sphere(3)
-        tip = pgl.Translated(x, y, z, tip)
-        tip = pgl.Shape(tip, col2)
-        shapes.append(tip)
-
-    print(len(shapes), 'shapes to plot')
-    shapes = pgl.Scene(shapes)
-    scene = pgl.Scene([shapes,model_scene])
-    pgl.Viewer.display(scene)
-
-
 def plot_leaves(leaves,cluster,stem=False):
 
     #palette = np.array(
@@ -432,7 +280,6 @@ def plot_leaves(leaves,cluster,stem=False):
     pgl.Viewer.display(scene)
 
 
-
 def plot_snapshot(snapshot, colored=True, ranks=None, stem=True):
 
     size = 15
@@ -442,7 +289,9 @@ def plot_snapshot(snapshot, colored=True, ranks=None, stem=True):
         ranks = snapshot.get_ranks()
     print(ranks)
 
-    z_stem = max([l.info['pm_z_base'] for l in snapshot.get_mature_leafs()])
+    z_stem = -20000
+    if snapshot.get_mature_leafs() != []:
+        z_stem = max([l.info['pm_z_base'] for l in snapshot.get_mature_leafs()])
 
     shapes = []
     h = 700  # - vmsi.get_stem().info['pm_z_base']
@@ -464,8 +313,10 @@ def plot_snapshot(snapshot, colored=True, ranks=None, stem=True):
         else:
             if leaf.info['pm_label'][0] == 'm':
                 col = pgl.Material(pgl.Color3(0, 128, 255))
+                col = pgl.Material(pgl.Color3(255, 0, 0))
             elif leaf.info['pm_label'][0] == 'g':
                 col = pgl.Material(pgl.Color3(255, 140, 0))
+                col = pgl.Material(pgl.Color3(255, 0, 0))
 
         for k in range(len(segment) - 1):
             # arguments cylindre : centre1, centre2, rayon, nbre segments d'un cercle.
@@ -479,6 +330,7 @@ def plot_snapshot(snapshot, colored=True, ranks=None, stem=True):
     # stem
     if stem:
         col2 = pgl.Material(pgl.Color3(0, 0, 0))
+        col2 = pgl.Material(pgl.Color3(255, 0, 0))
         segment = snapshot.get_stem().get_highest_polyline().polyline
         segment = [x for x in segment if x[2] <= z_stem]
         for k in range(len(segment) - 1):
