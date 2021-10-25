@@ -421,7 +421,7 @@ class TrackedPlant:
         """
 
         # TODO : don't stock annotated ranks in both snapshot and leaf ?
-
+        # annotation copy in Z:\lepseBinaries\TaggedImages\ARCH2017-03-30\rank_annotation
         df_path = folder + 'rank_annotation_{}.csv'.format(self.plantid)
 
         if os.path.isfile(df_path):
