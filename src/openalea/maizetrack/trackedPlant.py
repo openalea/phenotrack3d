@@ -239,13 +239,48 @@ class TrackedPlant:
         return ref_skeleton
 
     def tracking_info_update(self):
+        """
+        update the 'info' attribute for each leaf of each snapshot.
+        In the TrackedPlant object, rank data is saved and modified in the 'order' attribute of each snapshot, during
+        the different steps of the tracking algorithms. Here, this functions allows to save the rank info for each leaf
+        at the same place as other leaves info from phenomenal (leaf length, etc.)
+        """
         for snapshot in self.snapshots:
             ranks = snapshot.get_ranks()
             for leaf, rank in zip(snapshot.leaves, ranks):
                 leaf.info['pm_leaf_number_tracking'] = rank + 1
 
-    def align_mature(self, gap=12.35, gap_extremity_factor=0.5, direction=1, n_previous=5, w_h=0.03, w_l=0.004,
+    def align_mature(self, gap=12.35, gap_extremity_factor=0.2, direction=1, n_previous=5000, w_h=0.03, w_l=0.004,
                      rank_attribution=True):
+        """
+        alignment and rank attributions in a time-series of sequences of leaves.
+        Step 1 : use a multiple sequence alignment algorithm to align the sequences.
+        Step 2 : Detect and remove abnormal group of leaves ; final rank attribution.
+
+        Parameters
+        ----------
+        gap : float
+            weight  for pairwise sequence alignment
+        gap_extremity_factor : float
+            parameter allowing to change the value of the gap penalty for terminal gaps (terminal gap penalty = gap *
+            gap_extremity_factor)
+        direction : int
+            parameter determining if sequences are progressively aligned starting with first (direction == 1) or last
+            (direction == -1) sequences from the time-series.
+        n_previous : int
+            Each time a new sequence is added to the global alignment, it is compared with the n_previous previous
+            sequences added to the global alignment.
+        w_h : float
+            weight associated to insertion height feature in a leaf feature vector
+        w_l : float
+            weight associated to length feature in a leaf feature vector
+        rank_attribution : bool
+            choose if step 2 is done (True) or not (False)
+
+        Returns
+        -------
+
+        """
 
         # Step 1 - multi sequence alignment
         # ==============================================
@@ -279,12 +314,10 @@ class TrackedPlant:
 
             print('{}/{} ranks removed after sequence alignment'.format(len(abnormal_ranks), len(alignment_matrix[0])))
 
-        # ============ saving results in leaf.info attributes
+        # saving results in leaf.info attributes
+        # ================================================
 
-        # update leaf.info
         self.tracking_info_update()
-
-        return alignment_matrix
 
     def align_growing(self):
         """
@@ -314,7 +347,7 @@ class TrackedPlant:
                     g_min, d_min = -1, float('inf')
                     for g in g_growing:
                         leaf_candidate = snapshot.leaves[g]
-                        d = phm_leaves_distance(leaf_ref=leaf_ref, leaf_candidate=leaf_candidate, method=2)
+                        d = phm_leaves_distance(leaf_ref=leaf_ref, leaf_candidate=leaf_candidate)
                         if d < d_min:
                             g_min, d_min = g, d
 

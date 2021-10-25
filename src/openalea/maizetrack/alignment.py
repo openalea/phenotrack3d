@@ -1,10 +1,6 @@
 import numpy as np
 from copy import deepcopy
-from scipy.spatial.distance import directed_hausdorff
-
 from openalea.maizetrack.utils import quantile_point, polyline_until_z
-
-# TODO : no maize/plant vocabulary
 
 ##########################################################################################################
 ##### Functions for step 1 : mature leaf tracking ########################################################
@@ -12,7 +8,6 @@ from openalea.maizetrack.utils import quantile_point, polyline_until_z
 
 
 # TODO : replace '-' by -1 ?
-# TODO: add simple usage test (in test)
 def needleman_wunsch(X, Y, gap, gap_extremity_factor=1.):
     """
     Performs pairwise alignment of profiles X and Y with Needleman-Wunsch algorithm.
@@ -128,14 +123,6 @@ def scoring_function(vec1, vec2):
 
     """
 
-    # # should never happen. Only useful for nw_score()
-    # if all(np.isnan(vec1)) and all(np.isnan(vec2)):
-    #     return gap * 2
-    #
-    # # same
-    # elif (all(np.isnan(vec1)) and not all(np.isnan(vec2))) or (all(np.isnan(vec2)) and not all(np.isnan(vec1))):
-    #     return gap
-
     return np.linalg.norm(vec1 - vec2)
 
 
@@ -170,7 +157,7 @@ def alignment_score(x, y, gap_extremity):
     if score:
         score = np.mean(score)
     else:
-        score = gap_extremity #TODO : bricolage
+        score = gap_extremity # TODO : bricolage
 
     return score
 
@@ -298,53 +285,21 @@ def detect_abnormal_ranks(alignment_matrix):
 # Functions for step 2 : growing leaf tracking
 #######################################################################
 
-def polylines_distance(pl1, pl2, method):
+def polylines_distance(pl1, pl2, n=20):
+    """ compute the distance between two polylines """
 
-    if method == 0:
-        d1 = directed_hausdorff(pl1, pl2)[0]
-        d2 = directed_hausdorff(pl2, pl1)[0]
-        dist = max(d1, d2)
-
-    # Frechet
-    elif method == 1:
-
-        dist = []
-        n = 20
-        for q in np.linspace(0, 1, n):
-            pos1 = quantile_point(pl1, q)
-            pos2 = quantile_point(pl2, q)
-            dist.append(np.sqrt(np.sum((pos1 - pos2) ** 2)))
-        dist = max(dist)
-
-    elif method in [2, 3, 4, 5]:
-
-        dist = 0
-        n = 20
-        for q in np.linspace(0, 1, n):
-            pos1 = quantile_point(pl1, q)
-            pos2 = quantile_point(pl2, q)
-            dist += np.sqrt(np.sum((pos1 - pos2) ** 2))
-
-        if method == 3:
-            len1 = np.sum([np.linalg.norm(np.array(pl1[k]) - np.array(pl1[k + 1])) for k in range(len(pl1) - 1)])
-            len2 = np.sum([np.linalg.norm(np.array(pl2[k]) - np.array(pl2[k + 1])) for k in range(len(pl2) - 1)])
-            dist /= (min(len1, len2) / max(len1, len2))
-
-        if method == 4:
-            len1 = np.sum([np.linalg.norm(np.array(pl1[k]) - np.array(pl1[k + 1])) for k in range(len(pl1) - 1)])
-            len2 = np.sum([np.linalg.norm(np.array(pl2[k]) - np.array(pl2[k + 1])) for k in range(len(pl2) - 1)])
-            dist /= np.mean([len1, len2])
-
-        if method == 5:
-            len1 = np.sum([np.linalg.norm(np.array(pl1[k]) - np.array(pl1[k + 1])) for k in range(len(pl1) - 1)])
-            len2 = np.sum([np.linalg.norm(np.array(pl2[k]) - np.array(pl2[k + 1])) for k in range(len(pl2) - 1)])
-            dist /= np.max([len1, len2])
+    dist = 0
+    for q in np.linspace(0, 1, n):
+        pos1 = quantile_point(pl1, q)
+        pos2 = quantile_point(pl2, q)
+        dist += np.sqrt(np.sum((pos1 - pos2) ** 2))
 
     return dist
 
 
 def phm_leaves_distance(leaf_ref, leaf_candidate, method):
-    # distance between two phm leaf objects, starting from a same base
+    """ takes two leaf objects, deduct two polylines which start from a same point, compute the distance between
+     these two polylines """
 
     # creating two polylines starting from the same base
     leaf1, leaf2 = leaf_ref, leaf_candidate

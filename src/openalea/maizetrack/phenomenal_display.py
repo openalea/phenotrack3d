@@ -1,3 +1,5 @@
+"""" functions to visualize phenomenal objects using plantGL """
+
 # %gui qt
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,15 +10,16 @@ try:
 except ImportError:
     has_pgl_display = False
 
+# colors used to visualize leaf ranks
 PALETTE = np.array(
     [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [204, 121, 167], [0, 158, 115],
      [0, 114, 178], [230, 159, 0], [140, 86, 75], [0, 255, 255], [255, 0, 100], [0, 77, 0], [100, 0, 255],
      [100, 0, 0], [0, 0, 100], [100,100, 0], [0, 100,100], [100, 0, 100], [0, 0, 0], [255, 100, 100]])
-
 PALETTE = 3 * list(PALETTE) + [[255, 255, 255]]
 
 
 def plot_vg(vg, col=(60, 60, 60)):
+    """ display phenomenal voxelgrid """
 
     size = vg.voxels_size
     shapes = []
@@ -33,6 +36,7 @@ def plot_vg(vg, col=(60, 60, 60)):
 
 
 def plot_sk(skeleton, display_tips=True, stem_segment=None):
+    """ display phenomenal skeleton """
     shapes = []
     col1 = pgl.Material(pgl.Color3(255, 0, 0))
     col2 = pgl.Material(pgl.Color3(255, 0, 0))
@@ -70,6 +74,8 @@ def plot_sk(skeleton, display_tips=True, stem_segment=None):
 
 
 def vmsi_polylines_to_pgl(vmsi, li='all', coli='same', only_mature=False):
+    """ convert polylines of a vmsi object from phenomenal to plantGL format """
+
     shapes = []
     h = 700 # - vmsi.get_stem().info['pm_z_base']
     col2 = pgl.Material(pgl.Color3(0, 0, 0))
@@ -145,22 +151,14 @@ def vmsi_polylines_to_pgl(vmsi, li='all', coli='same', only_mature=False):
     return shapes
 
 
-# TODO : remove l, col
-def plot_vmsi(vmsi_list, l=[], col=[], only_mature=False):
+def plot_vmsi(vmsi_list, only_mature=False):
+    """ display polylines of a segmented maize plant (vmsi) """
+
     shapes = []
     for i in range(len(vmsi_list)):
         vmsi = vmsi_list[i]
-
-        if l==[]:
-            li = 'all'
-        else:
-            li = l[i]
-
-        if col==[]:
-            coli = 'same'
-        else:
-            coli = col[i]
-
+        li = 'all'
+        coli = 'same'
         shapes += vmsi_polylines_to_pgl(vmsi, li, coli, only_mature)
     print(len(shapes), ' shapes to plot')
     scene = pgl.Scene(shapes)
@@ -168,6 +166,7 @@ def plot_vmsi(vmsi_list, l=[], col=[], only_mature=False):
 
 
 def plot_vmsi_voxel(vmsi, ranks=None):
+    """ display voxels of a segmented maize plant (vmsi). deprecated """
 
     size = vmsi.voxels_size
     shapes = []
@@ -240,19 +239,21 @@ def plot_vmsi_voxel(vmsi, ranks=None):
     pgl.Viewer.display(scene)
 
 
-def plot_leaves(leaves,cluster,stem=False):
+def plot_leaves(leaves, cluster, stem=False):
+    """
+    display a set of leaves
 
-    #palette = np.array(
-    #    [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [255, 0, 255], [0, 255, 255],
-    #     [0,100,255], [0,255,100], [100,0,255], [100,255,0], [255,0,100], [255,100,0]])
+    Parameters
+    ----------
+    leaves : least of phenomenal organ objects
+    cluster : list of int
+        rank / color for each leaf
+    stem
 
-    #palette = list(palette) + list((palette * 0.3).astype(int)) + \
-    #          list((palette * 0.15).astype(int)) + [[255, 255, 255]]
+    Returns
+    -------
 
-
-    #palette = np.array([[0, 0, 0], [230, 159, 0], [86, 180, 233], [0, 158, 115],
-    #                    [240, 228, 66], [0, 114, 178], [213, 94, 0], [204, 121, 167]])
-    #palette = 3 * list(palette) + [[255, 255, 255]]
+    """
 
     shapes = []
     h = 700  # - vmsi.get_stem().info['pm_z_base']
@@ -281,6 +282,7 @@ def plot_leaves(leaves,cluster,stem=False):
 
 
 def plot_snapshot(snapshot, colored=True, ranks=None, stem=True):
+    """ other way to display a segmented maize plant, used for the figures of the paper """
 
     size = 15
 
@@ -313,10 +315,10 @@ def plot_snapshot(snapshot, colored=True, ranks=None, stem=True):
         else:
             if leaf.info['pm_label'][0] == 'm':
                 col = pgl.Material(pgl.Color3(0, 128, 255))
-                col = pgl.Material(pgl.Color3(255, 0, 0))
+                #col = pgl.Material(pgl.Color3(255, 0, 0))
             elif leaf.info['pm_label'][0] == 'g':
                 col = pgl.Material(pgl.Color3(255, 140, 0))
-                col = pgl.Material(pgl.Color3(255, 0, 0))
+                #col = pgl.Material(pgl.Color3(255, 0, 0))
 
         for k in range(len(segment) - 1):
             # arguments cylindre : centre1, centre2, rayon, nbre segments d'un cercle.
@@ -330,7 +332,7 @@ def plot_snapshot(snapshot, colored=True, ranks=None, stem=True):
     # stem
     if stem:
         col2 = pgl.Material(pgl.Color3(0, 0, 0))
-        col2 = pgl.Material(pgl.Color3(255, 0, 0))
+        #col2 = pgl.Material(pgl.Color3(255, 0, 0))
         segment = snapshot.get_stem().get_highest_polyline().polyline
         segment = [x for x in segment if x[2] <= z_stem]
         for k in range(len(segment) - 1):
