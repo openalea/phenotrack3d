@@ -218,7 +218,8 @@ def missing_data(vmsi):
 
 def dataset_mean_distance(w_h=0.03, w_l=0.004, step=1):
     """
-    mean distance between consecutive leaves (spatially) in a small dataset
+    mean distance between consecutive leaves (spatially) in a small dataset.
+    file leaf_vectors.npy generated using 30 random plants (available in modulor local_benoit)
     w_h=0.03, w_l=0.004 => d = 4.23
     """
     v = np.load('leaf_vectors.npy', allow_pickle=True)
