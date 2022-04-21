@@ -311,7 +311,7 @@ def phm_leaves_distance(leaf_ref, leaf_candidate, method):
     else:
         pl1 = polyline_until_z(leaf1.highest_pl, zbase2)
 
-    #normalize
+    # normalize
     len1 = np.sum([np.linalg.norm(np.array(pl1[k]) - np.array(pl1[k + 1])) for k in range(len(pl1) - 1)])
     pl1 = pl1 / np.max((len1, 0.0001))
     pl2 = pl2 / np.max((len1, 0.0001))
