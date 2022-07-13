@@ -8,7 +8,7 @@ Such 3D reconstructions can be obtained from sets of RGB images with the Phenome
 
 * Daviet Benoit (benoit.daviet@inrae.fr)
 * Fournier Christian (christian.fournier@inrae.fr)
-* Pradal Christophe (christophe.pradal@inria.fr)
+* Pradal Christophe (christophe.pradal@cirad.fr)
 
 ### License
 
