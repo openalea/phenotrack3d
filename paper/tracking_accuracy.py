@@ -39,7 +39,6 @@ df = df[df['timestamp'] < 1496509351]  # 06-03
 
 # ===== accuracy per plant ===================================================
 
-
 #selec = df
 n, accuracy = [], []
 for plantid in df['plantid'].unique():
@@ -56,6 +55,15 @@ for plantid in df['plantid'].unique():
 print('=====================================')
 print(min(accuracy), np.mean(accuracy))
 print(min(n), np.mean(n))
+
+# rmse
+df2 = df[~(df['rank_tracking'] == 0)]
+x, y = df2[df2['mature']]['rank_annotation'], df2[df2['mature']]['rank_tracking']
+rmse = np.sqrt(np.sum((x - y) ** 2) / len(x))
+print('mature: RMSE = ', rmse)
+x, y = df2[~df2['mature']]['rank_annotation'], df2[~df2['mature']]['rank_tracking']
+rmse = np.sqrt(np.sum((x - y) ** 2) / len(x))
+print('growing: RMSE = ', rmse)
 
 # Brut : 94.9%. -> 06-03 : 97.7%.
 
@@ -92,7 +100,6 @@ for m in [True, False]:
             res.append([m, rank, accuracy, n])
 res = pd.DataFrame(res, columns=['mature', 'rank', 'accuracy', 'n'])
 
-fig, ax = plt.subplots()
 fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
 ax.xaxis.set_major_locator(MaxNLocator(integer=True)) # int axis
 ax.tick_params(axis='both', which='major', labelsize=20)
@@ -112,6 +119,7 @@ leg = plt.legend(prop={'size': 20}, loc='lower right')
 leg.get_frame().set_linewidth(0.0)
 
 fig.savefig('paper/tracking_accuracy', bbox_inches='tight')
+
 
 # ===== accuracy per time period ===========================================
 

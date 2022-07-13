@@ -20,11 +20,11 @@ from scipy.interpolate import interp1d
 df_tt = pd.read_csv('TT_ZA17.csv')
 
 # modulor
-folder = 'local_cache/ZA17/collars_voxel4_tol1_notop_vis4_minpix100'
+folder = 'local_cache/cache_ZA17/collars_voxel4_tol1_notop_vis4_minpix100'
 all_files = [folder + '/' + rep + '/' + f for rep in os.listdir(folder) for f in os.listdir(folder + '/' + rep)]
 
 # available in NASHShare2
-folder2 = 'data/stem_annotation/'
+folder2 = 'X:/lepseBinaries/TaggedImages/ARCH2017-03-30/stem_annotation/'
 plantids_anot = [int(f.split('_')[1].split('.')[0]) for f in os.listdir(folder2) if os.path.isfile(folder2 + f)]
 
 
@@ -75,7 +75,7 @@ for plantid in [p for p in plantids_anot if p != 452]: # TODO : plantid 452 not 
     # ========== basic phenomenal ============================================
 
     # available in modulor
-    folder_vmsi = 'local_cache/ZA17/segmentation_voxel4_tol1_notop_vis4_minpix100_no_stem_smooth_no_tracking'
+    folder_vmsi = 'local_cache/cache_ZA17/segmentation_voxel4_tol1_notop_vis4_minpix100_no_stem_smooth_no_tracking'
     paths = metainfos_to_paths(metainfos, phm_parameters=(4, 1, 'notop', 4, 100), folder=folder_vmsi)
 
     metainfos2, paths = check_existence(metainfos, paths)
@@ -94,7 +94,7 @@ for plantid in [p for p in plantids_anot if p != 452]: # TODO : plantid 452 not 
     # ========= median stem on new phenomenal ====================================
 
     # available in modulor
-    folder_vmsi = 'local_cache/ZA17/segmentation_voxel4_tol1_notop_vis4_minpix100_stem_smooth_tracking'
+    folder_vmsi = 'local_cache/cache_ZA17/segmentation_voxel4_tol1_notop_vis4_minpix100_stem_smooth_tracking'
     paths = metainfos_to_paths(metainfos, stem_smoothing=True, phm_parameters=(4, 1, 'notop', 4, 100), old=False,
                                folder=folder_vmsi)
 
@@ -114,7 +114,7 @@ for plantid in [p for p in plantids_anot if p != 452]: # TODO : plantid 452 not 
     z_anot = []
 
     # available in NASHShare2
-    with open('data/stem_annotation/stem_{}.json'.format(plantid)) as f:
+    with open(folder2 + 'stem_{}.json'.format(plantid)) as f:
         d = json.load(f)
 
         for name in d.keys():
@@ -221,7 +221,7 @@ for plantid in [p for p in plantids_anot if p != 452]: # TODO : plantid 452 not 
                 print('no data')
 
 res = pd.DataFrame(res, columns=['obs', 'pred', 'obs3d', 'pred3d', 'pred3d_smooth', 'pred_phm'])
-
+res.to_csv('data/paper/stem_height_validation.csv')
 
 
 res = pd.read_csv('data/paper/stem_height_validation.csv')
@@ -270,7 +270,7 @@ ax.text(1950, 670, 'R² = {}'.format(round(r2, 3)), fontdict={'size': 12})
 ax.text(1950, 600, 'RMSE = {} mm'.format(round(rmse, 2)), fontdict={'size': 12})
 ax.text(1950, 530, 'n = {}'.format(len(x)), fontdict={'size': 12})
 
-# Final graph, 3D z smooth deep learning vs 3D z phenomenal:
+# ===== Final graph, 3D z smooth deep learning vs 3D z phenomenal: ======================================
 
 x, y = np.array(res['obs3d']) / 10, np.array(res['pred3d_smooth']) / 10
 rmse = np.sqrt(np.sum((x - y) ** 2) / len(x))
@@ -284,13 +284,18 @@ mape2 = 100 * np.mean(np.abs((x2 - y2) / x2))
 r2_2 = r2_score(x2, y2)
 bias2 = np.mean(x2 - y2)
 
+
 fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
 ax.tick_params(axis='both', which='major', labelsize=20)
 plt.xlim((-6, 205))
 plt.ylim((-6, 205))
-plt.plot([-10, 300], [-10, 300], '-', color='grey')
-plt.plot(x2, y2, '^', color='grey', markersize=6, label='Phenomenal') # \n RMSE = {} cm, R² = {}'.format(round(rmse2, 1), round(r2_2, 3)))
-plt.plot(x, y, 'o', color='black', markersize=6, label='Phenomenal with deep-learning \nstem detection') # \nstem detection \n RMSE = {} cm, R² = {}'.format(round(rmse, 2), round(r2, 3)))
+plt.plot([-10, 300], [-10, 300], '-', color='black')
+plt.plot(x2, y2, '.', color='grey', markersize=8, alpha=0.5) # \n RMSE = {} cm, R² = {}'.format(round(rmse2, 1), round(r2_2, 3)))
+a, b = np.polyfit(x, y, 1)
+plt.plot([-10, 3000], a*np.array([-10, 3000]) + b, '--', color='red', label=f'y = {a:.{2}f}x {b:+.{2}f}')
+a, b = np.polyfit(x2, y2, 1)
+plt.plot([-10, 3000], a*np.array([-10, 3000]) + b, '--', color='grey', label=f'y = {a:.{2}f}x {b:+.{2}f}')
+plt.plot(x, y, 'o', color='red', markersize=8, alpha=0.5) # \nstem detection \n RMSE = {} cm, R² = {}'.format(round(rmse, 2), round(r2, 3)))
 plt.gca().set_aspect('equal', adjustable='box')
 plt.xlabel('observation (cm)', fontsize=30)
 plt.ylabel('prediction (cm)', fontsize=30)
@@ -298,13 +303,32 @@ plt.title('Stem height', fontsize=35)
 #ax.text(1950, 670, 'R² = {}'.format(round(r2, 3)), fontdict={'size': 12})
 #ax.text(1950, 600, 'RMSE = {} cm'.format(round(rmse, 2)), fontdict={'size': 12})
 #ax.text(1950, 530, 'n = {}'.format(len(x)), fontdict={'size': 12})
-leg = plt.legend(prop={'size': 16}, loc='upper left', markerscale=2)
+leg = plt.legend(prop={'size': 22}, loc='upper left', markerscale=1.5)
+for lh in leg.legendHandles:
+    lh._legmarker.set_alpha(1)
+leg.get_texts()[1].set_color('grey')
 leg.get_frame().set_linewidth(0.0)
+leg.get_frame().set_alpha(None)
 
-ax.text(0.67, 0.17, 'n = {} \nBias = {} cm \nRMSE = {} cm \nR² = {}'.format(len(x), round(bias2, 2), round(rmse2, 1), round(r2_2, 3)), transform=ax.transAxes, fontsize=20,
-        verticalalignment='top', color='grey')
-ax.text(0.3, 0.17, 'n = {} \nBias = {} cm \nRMSE = {} cm \nR² = {}'.format(len(x), round(bias, 2), round(rmse, 2), round(r2, 3)), transform=ax.transAxes, fontsize=20,
-        verticalalignment='top')
+ax.text(0.05, 0.75, 'n = {} \nBias = {} cm \nRMSE = {} cm \nMAPE = {} % \nR² = {}'.format(
+    len(x), round(bias2, 2), round(rmse2, 1), round(mape2, 1), round(r2_2, 3)),
+        transform=ax.transAxes, fontsize=20, verticalalignment='top', color='grey')
+ax.text(0.60, 0.26, 'n = {} \nBias = {} cm \nRMSE = {} cm \nMAPE = {} % \nR² = {}'.format(
+    len(x), round(bias, 2), round(rmse, 2), round(mape, 2), round(r2, 3)),
+        transform=ax.transAxes, fontsize=25, verticalalignment='top', color='black')
 
 
 fig.savefig('paper/results/stem_validation', bbox_inches='tight')
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -63,26 +63,30 @@ res = pd.DataFrame(res, columns=['plantid', 'obs', 'pred', 'var', 'rank'])
 # ===== plot an example for 1 plant ===============================================================================
 
 # length
-for plantid in [1276, 1301, 940]:
+#for plantid in [1276, 1301, 940]:
+plantid = 1301
 
-    fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
-    ax.tick_params(axis='both', which='major', labelsize=20)  # axis number size
+fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
+ax.tick_params(axis='both', which='major', labelsize=20)  # axis number size
 
-    # anot
-    selec = res[(res['plantid'] == plantid) & (res['var'] == 'l')]
-    plt.plot(selec['rank'], selec['obs'] / 10, 'g-', linewidth=3, label='observation (ground-truth)')
+# anot
+selec = res[(res['plantid'] == plantid) & (res['var'] == 'l')]
+plt.plot(selec['rank'], selec['obs'] / 10, 'g--', linewidth=3, label='observation')
 
-    # pred
-    selec = df[df['plantid'] == plantid]
-    plt.plot(selec['rank_tracking'], selec['l_extended'] / 10, 'k.', markersize=10)
-    selec = selec.groupby('rank_tracking').median('l_extended').reset_index()
-    plt.plot(selec['rank_tracking'], selec['l_extended'] / 10, 'r-', markersize=10, linewidth=3, label='prediction (median)')
+# pred
+selec = df[df['plantid'] == plantid]
+plt.plot(selec['rank_tracking'], selec['l_extended'] / 10, 'k.', markersize=8, label='prediction')
+selec = selec.groupby('rank_tracking').median('l_extended').reset_index()
+plt.plot(selec['rank_tracking'], selec['l_extended'] / 10, 'k-o', markersize=10, linewidth=3, label='Final median prediction')
 
-    plt.legend()
-    plt.title(plantid)
-    plt.xlabel('Rank', fontsize=30)
-    plt.ylabel('Length (cm)', fontsize=30)
-    plt.legend(prop={'size': 22}, loc='lower center', markerscale=2)
+plt.legend()
+plt.title('Leaf length profile \n example for one plant', fontsize=35)
+plt.xlabel('Leaf rank', fontsize=30)
+plt.ylabel('Leaf length (cm)', fontsize=30)
+leg = plt.legend(prop={'size': 22}, loc='lower center', markerscale=2)
+leg.get_frame().set_linewidth(0.0)
+
+fig.savefig('paper/results/profil_example', bbox_inches='tight')
 
 # fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
 # ax.tick_params(axis='both', which='major', labelsize=20)  # axis number size
@@ -131,19 +135,37 @@ plt.ylabel('prediction (cm)', fontsize=30)
 plt.plot([-20, 300], [-20, 300], '-', color='black')
 plt.xlim((0, 130))
 plt.ylim((0, 130))
-plt.plot(x, y, 'k.', markersize=15, alpha=0.3)
+plt.plot(x, y, 'ro', markersize=8, alpha=0.5)
+
+# add results without leaf extension
+df_ext = pd.read_csv('paper/leaf_ext.csv').iloc[:-1]
+x2, y2 = df_ext['obs'] / 10, df_ext['pred_phm'] / 10
+plt.plot(x2, y2, '.', color='grey', markersize=8, alpha=0.5)
 
 a, b = np.polyfit(x, y, 1)
-plt.plot([-10, 3000], a*np.array([-10, 3000]) + b, 'k--', label='linear regression \n (a = {}, b = {} cm)'.format(round(a, 2), round(b, 2)))
+plt.plot([-10, 3000], a*np.array([-10, 3000]) + b, 'r--', label=f'y = {a:.{2}f}x {b:+.{2}f}')
 
-leg = plt.legend(prop={'size': 17}, loc='upper left', markerscale=2)
+a, b = np.polyfit(x2, y2, 1)
+plt.plot([-10, 3000], a*np.array([-10, 3000]) + b, '--', color='grey', label=f'y = {a:.{2}f}x {b:+.{2}f}')
+
+leg = plt.legend(prop={'size': 22}, loc='upper left', markerscale=2)
 leg.get_frame().set_linewidth(0.0)
+leg.get_texts()[1].set_color('grey')
 
 rmse = np.sqrt(np.sum((x - y) ** 2) / len(x))
 r2 = r2_score(x, y)
 biais = np.mean(y - x)
-ax.text(0.60, 0.22, 'n = {} \nBias = {} cm\nRMSE = {} cm \nR² = {}'.format(len(x), round(biais, 2), round(rmse, 2), round(r2, 3)), transform=ax.transAxes, fontsize=25,
+mape = 100 * np.mean(np.abs((x - y) / x))
+ax.text(0.60, 0.26, 'n = {} \nBias = {} cm\nRMSE = {} cm \nMAPE = {} % \nR² = {}'.format(
+    len(x), round(biais, 2), round(rmse, 2), round(mape, 1), round(r2, 3)), transform=ax.transAxes, fontsize=25,
         verticalalignment='top')
+rmse2 = np.sqrt(np.sum((x2 - y2) ** 2) / len(x2))
+r2_2 = r2_score(x2, y2)
+bias2 = np.mean(y2 - x2)
+mape2 = 100 * np.mean(np.abs((x2 - y2) / x2))
+ax.text(0.05, 0.75, 'n = {} \nBias = {} cm \nRMSE = {} cm \nMAPE = {} % \nR² = {}'.format(
+    len(x2), round(bias2, 2), round(rmse2, 1), round(mape2, 1), round(r2_2, 3)),
+        transform=ax.transAxes, fontsize=20, verticalalignment='top', color='grey')
 
 fig.savefig('paper/results/profil_l', bbox_inches='tight')
 
@@ -160,18 +182,20 @@ plt.ylabel('prediction (cm)', fontsize=30)
 plt.plot([-20, 300], [-20, 300], '-', color='k')
 plt.xlim((-10, 210))
 plt.ylim((-10, 210))
-plt.plot(x, y, 'k.', markersize=15, alpha=0.3)
+plt.plot(x, y, 'ro', markersize=8, alpha=0.5)
 
 a, b = np.polyfit(x, y, 1)
-plt.plot([-10, 3000], a*np.array([-10, 3000]) + b, 'k--', label='linear regression \n (a = {}, b = {} cm)'.format(round(a, 2), round(b, 2)))
+plt.plot([-10, 3000], a*np.array([-10, 3000]) + b, 'r--', label=f'y = {a:.{2}f}x {b:+.{2}f}')
 
-leg = plt.legend(prop={'size': 17}, loc='upper left', markerscale=2)
+leg = plt.legend(prop={'size': 22}, loc='upper left', markerscale=2)
 leg.get_frame().set_linewidth(0.0)
 
 rmse = np.sqrt(np.sum((x - y) ** 2) / len(x))
 r2 = r2_score(x, y)
 biais = np.mean(y - x)
-ax.text(0.60, 0.22, 'n = {} \nBias = {} cm\nRMSE = {} cm \nR² = {}'.format(len(x), round(biais, 2), round(rmse, 2), round(r2, 3)), transform=ax.transAxes, fontsize=25,
+mape = 100 * np.mean(np.abs((x - y) / x))
+ax.text(0.60, 0.26, 'n = {} \nBias = {} cm\nRMSE = {} cm \nMAPE = {} % \nR² = {}'.format(
+    len(x), round(biais, 2), round(rmse, 2), round(mape, 1), round(r2, 3)), transform=ax.transAxes, fontsize=25,
         verticalalignment='top')
 
 fig.savefig('paper/results/profil_h', bbox_inches='tight')

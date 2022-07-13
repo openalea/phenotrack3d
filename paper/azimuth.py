@@ -10,7 +10,7 @@ plantid = 940
 dfid = pd.read_csv('data/tracking/{}.csv'.format(plantid))
 #dfid = dfid[~dfid['mature']]
 #from llorenc, currently copied to  modulor cache
-df_tt = pd.read_csv('TT_ZA17.csv')
+df_tt = pd.read_csv('data/TT_ZA17.csv')
 
 thermaltimes = np.array(df_tt['ThermalTime'])
 timestamps = np.array(df_tt['timestamp'])
@@ -22,12 +22,14 @@ fig.canvas.set_window_title(str(plantid))
 ranks = sorted([r for r in dfid['rank_tracking'].unique() if r != 0])
 for r in ranks[:9]:
     dfr = dfid[dfid['rank_tracking'] == r].sort_values('tt').iloc[:25]
+    dfr = dfr[dfr['tt'] - min(dfr['tt']) < 40]
     time = dfr['tt'] - min(dfr['tt'])
     azimuth = dfr['a'] / 360 * 2*np.pi
     ax.plot(azimuth, time, '-', color=PALETTE[r - 1] / 255.)
 
 ax.set_rlabel_position(-22.5)  # Move radial labels away from plotted line
 ax.tick_params(axis='both', which='major', labelsize=20)
+plt.legend()
 
 fig.savefig('paper/azimuth_growth', bbox_inches='tight')
 

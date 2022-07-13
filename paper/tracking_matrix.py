@@ -63,11 +63,11 @@ plant_ref.load_rank_annotation()
 
 plant_aligned = copy.deepcopy(plant_ref)
 plant_aligned.align_mature(direction=1, gap=12.365, w_h=0.03, w_l=0.002, gap_extremity_factor=0.2, n_previous=500,
-                           rank_attribution=False)
+                           rank_attribution=True)
 plant_aligned.align_growing()
 
 plant = plant_aligned
-only_mature = True
+only_mature = False
 
 snapshots = plant.snapshots[0::3]
 
@@ -125,6 +125,11 @@ cmap = colors.ListedColormap(rgb, "")
 val = [k - 1.5 for k in range(50)]
 norm = colors.BoundaryNorm(val, len(val)-1)
 plt.imshow(mat, interpolation='nearest', cmap=cmap, norm=norm)
+
+
+
+# ==================================================================================================================
+
 
 
 

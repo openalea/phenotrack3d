@@ -240,12 +240,25 @@ for plantid in res_emergence['plantid'].unique():
                 #t_nearest = min(leaf_count.keys(), key=lambda x: abs(x - row['timestamp']))
                 res_stage.append([plantid, obs, pred, var])
 
-res_stage = pd.DataFrame(res_stage, columns=['plantid', 'obs', 'pred', 'type'])
+# # ===== add phenomenal brut result (2022) ==================================================
+
+res_stage = [k + ['new'] for k in res_stage]
+df_phm = pd.read_csv('paper/leaf_stage_phm2.csv')
+
+res_stage = pd.DataFrame(res_stage, columns=['plantid', 'obs', 'pred', 'type', 'method'])
+res_stage = pd.concat((df_phm, res_stage))
+
+res_stage.to_csv('paper/leaf_count.csv', index=False)
+
+# =========================================================================================
+
+res_stage = pd.read_csv('paper/leaf_count.csv')
 
 # ===== plot visible leaf stage ===========================================================
 
 s = res_stage[(res_stage['type'] == 'visi') & (~res_stage['pred'].isna())]
-x, y = np.array(s['obs']), np.array(s['pred'])
+s1 = s[s['method'] == 'new']
+x1, y1 = np.array(s1['obs']), np.array(s1['pred'])
 #x = np.ceil(x - 1)
 fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
 ax.tick_params(axis='both', which='major', labelsize=20) # axis number size
@@ -258,40 +271,59 @@ plt.ylabel('prediction', fontsize=30)
 plt.plot([-5, 25], [-5, 25], '-', color='black')
 plt.xlim((0, 18))
 plt.ylim((0, 18))
-plt.plot(x, y, 'k.', markersize=15, alpha=0.05)
+
+s2 = s[s['method'] == 'phm']
+x2, y2 = np.array(s2['obs']), np.array(s2['pred'])
+plt.plot(x2, y2, '.', color='grey', markersize=8, alpha=0.2)
+
+plt.plot(x1, y1, 'o', color='red', markersize=8, alpha=0.1)
 
 # a0, a, b = np.polyfit(x, y, 2)
 # xu = np.array(sorted(np.unique(x)))
 # plt.plot(xu, a0 * np.array(xu**2) + a * np.array(xu) + b, 'r-')
-x = x[[i for i in range(len(y)) if y[i] is not None]]
-y = y[[i for i in range(len(y)) if y[i] is not None]]
-y = np.array([float(yi) for yi in y])
-a, b = np.polyfit(x, y, 1)
-plt.plot([-10, 30], a*np.array([-10, 30]) + b, '--', color='black', label='linear regression \n (a = {}, b = {})'.format(round(a, 2), round(b, 3)))
+# x = x[[i for i in range(len(y)) if y[i] is not None]]
+# y = y[[i for i in range(len(y)) if y[i] is not None]]
+a, b = np.polyfit(x1, np.array([float(yi) for yi in y1]), 1)
+plt.plot([-10, 30], a*np.array([-10, 30]) + b, '--', color='red', label=f'y = {a:.{2}f}x {b:+.{2}f}')
+
+a, b = np.polyfit(x2, np.array([float(yi) for yi in y2]), 1)
+plt.plot([-10, 30], a*np.array([-10, 30]) + b, '--', color='grey', label=f'y = {a:.{2}f}x {b:+.{2}f}')
+
 # rmax = 10
 # x2, y2 = x[np.where(x <= rmax)], y[np.where(x <= rmax)]
 # a2, b2 = np.polyfit(x2, y2, 1)
 # plt.plot(x2, a2*x2 + b2, 'g-', label='linear regression (observation < {}) \n (a = {}, b = {})'.format(rmax, round(a2, 3), round(b2, 2)))
-leg = plt.legend(prop={'size': 17}, loc='upper left')
+leg = plt.legend(prop={'size': 22}, loc='upper left')
+leg.get_texts()[1].set_color('grey')
 leg.get_frame().set_linewidth(0.0)
 
 # set the linewidth of each legend object
 # for legobj in leg.legendHandles:
 #     legobj.set_linewidth(3)
 
-rmse = np.sqrt(np.sum((x - y) ** 2) / len(x))
-r2 = r2_score(x, y)
-biais = np.mean(y - x)
-ax.text(0.60, 0.22, 'n = {} \nBias = {}\nRMSE = {} \nR² = {}'.format(len(x), round(biais, 2), round(rmse, 2), round(r2, 3)), transform=ax.transAxes, fontsize=25,
-        verticalalignment='top')
+rmse = np.sqrt(np.sum((x1 - y1) ** 2) / len(x1))
+r2 = r2_score(x1, y1)
+biais = np.mean(y1 - x1)
+mape = 100 * np.mean(np.abs((x1 - y1) / x1))
+ax.text(0.60, 0.26, 'n = {} \nBias = {}\nRMSE = {}\nMAPE = {} % \nR² = {}'.format(
+    len(x1), round(biais, 2), round(rmse, 2), round(mape, 1), round(r2, 3)),
+        transform=ax.transAxes, fontsize=25, verticalalignment='top')
+
+rmse = np.sqrt(np.sum((x2 - y2) ** 2) / len(x2))
+r2 = r2_score(x2, y2)
+biais = np.mean(y2 - x2)
+mape = 100 * np.mean(np.abs((x2 - y2) / x2))
+ax.text(0.05, 0.75, 'n = {} \nBias = {}\nRMSE = {} \nMAPE = {} % \nR² = {}'.format(
+    len(x2), round(biais, 2), round(rmse, 2), round(mape, 1), round(r2, 3)), transform=ax.transAxes, fontsize=20,
+        verticalalignment='top', color='grey')
 
 fig.savefig('paper/results/nvisi_v2', bbox_inches='tight')
 
 # ===== plot ligulated leaf stage ============================================================
 
 s = res_stage[(res_stage['type'] == 'ligu') & (~res_stage['pred'].isna())]
-x, y = np.array(s['obs']), np.array(s['pred'])
-y = np.array([float(k) for k in y])
+s1 = s[s['method'] == 'new']
+x1, y1 = np.array(s1['obs']), np.array(s1['pred'])
 fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
 ax.tick_params(axis='both', which='major', labelsize=20) # axis number size
 plt.gca().set_aspect('equal', adjustable='box') # same x y scale
@@ -303,23 +335,48 @@ plt.ylabel('prediction', fontsize=30)
 plt.plot([-5, 25], [-5, 25], '-', color='black')
 plt.xlim((0, 18))
 plt.ylim((0, 18))
-plt.plot(x, y, 'k.', markersize=15, alpha=0.05)
 
-a, b = np.polyfit(x, y, 1)
-plt.plot([-10, 30], a*np.array([-10, 30]) + b, 'k--', label='linear regression \n (a = {}, b = {})'.format(round(a, 2), round(b, 2)))
+s2 = s[s['method'] == 'phm']
+x2, y2 = np.array(s2['obs']), np.array(s2['pred'])
+plt.plot(x2, y2, '.', color='grey', markersize=8, alpha=0.2)
 
-leg = plt.legend(prop={'size': 17}, loc='upper left', markerscale=2)
+plt.plot(x1, y1, 'ro', markersize=8, alpha=0.05)
+
+a, b = np.polyfit(x1, np.array([float(yi) for yi in y1]), 1)
+plt.plot([-10, 30], a*np.array([-10, 30]) + b, 'r--', label=f'y = {a:.{2}f}x {b:+.{2}f}')
+
+a, b = np.polyfit(x2, np.array([float(yi) for yi in y2]), 1)
+plt.plot([-10, 30], a*np.array([-10, 30]) + b, '--', color='grey', label=f'y = {a:.{2}f}x {b:+.{2}f}')
+
+leg = plt.legend(prop={'size': 22}, loc='upper left', markerscale=2)
 leg.get_frame().set_linewidth(0.0)
+leg.get_texts()[1].set_color('grey')
 # set the linewidth of each legend object
 # for legobj in leg.legendHandles:
 #     legobj.set_linewidth(3)
 
-rmse = np.sqrt(np.sum((x - y) ** 2) / len(x))
-r2 = r2_score(x, y)
-biais = np.mean(y - x)
-ax.text(0.60, 0.22, 'n = {} \nBias = {}\nRMSE = {} \nR² = {}'.format(len(x), round(biais, 3), round(rmse, 3), round(r2, 3)), transform=ax.transAxes, fontsize=25,
+rmse = np.sqrt(np.sum((x1 - y1) ** 2) / len(x1))
+r2 = r2_score(x1, y1)
+biais = np.mean(y1 - x1)
+mape = 100 * np.mean(np.abs((x1 - y1) / x1))
+ax.text(0.60, 0.26, 'n = {} \nBias = {}\nRMSE = {} \nMAPE = {} % \nR² = {}'.format(
+    len(x1), round(biais, 2), round(rmse, 2), round(mape, 1), round(r2, 3)), transform=ax.transAxes, fontsize=25,
         verticalalignment='top')
+
+rmse = np.sqrt(np.sum((x2 - y2) ** 2) / len(x2))
+r2 = r2_score(x2, y2)
+biais = np.mean(y2 - x2)
+mape = 100 * np.mean(np.abs((x2 - y2) / x2))
+ax.text(0.05, 0.75, 'n = {} \nBias = {}\nRMSE = {} \nMAPE = {} % \nR² = {}'.format(
+    len(x2), round(biais, 2), round(rmse, 2), round(mape, 1), round(r2, 3)), transform=ax.transAxes, fontsize=20,
+        verticalalignment='top', color='grey')
 
 fig.savefig('paper/results/nligu_v2', bbox_inches='tight')
 
 
+# histo
+
+fig, ax = plt.subplots(figsize=(10, 6), dpi=100)
+plt.hist(y - x, bins=len(set(y-x)), stacked=True, density=True, edgecolor='k', color='grey')
+ax.axes.xaxis.set_visible(False)
+ax.axes.yaxis.set_visible(False)
