@@ -12,4 +12,5 @@ Such 3D reconstructions can be obtained from sets of RGB images with the Phenome
 
 ### License
 
-Our code is released under **Cecill-C** (https://cecill.info/licences/Licence_CeCILL_V1.1-US.txt) licence. (see LICENSE file for details).
+Our code is released under **Cecill-C** (https://cecill.info/licences/Licence_CeCILL_V1.1-US.txt) licence. 
+See LICENSE file for details.
