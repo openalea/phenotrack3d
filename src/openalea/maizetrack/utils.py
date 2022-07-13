@@ -8,8 +8,10 @@ from alinea.phenoarch.shooting_frame import get_shooting_frame
 from openalea.maizetrack.phenomenal_display import PALETTE
 from skimage import io
 
+from openalea.phenomenal.calibration import Calibration
 
-##### based on phenomenal #####
+
+# ===== based on Phenomenal =========================================================================================
 
 def shooting_frame_conversion(s_frame_name):
     # returns 2 parameters needed for this conversion :
@@ -35,7 +37,15 @@ def phm3d_to_px2d(xyz, sf, angle=60):
     if xyz.ndim == 1:
         xyz = np.array([xyz])
 
-    f = get_shooting_frame(sf).get_calibration('side').get_projection(angle)
+    if sf.startswith('ARCH'):
+        # TODO : temporary
+        # phenomenal function
+        calib = Calibration.load('V:/lepseBinaries/Calibration/' + sf + '_calibration.json')
+        f = calib.get_projection(id_camera='side', rotation=angle)
+    else:
+        # phenoarch function
+        f = get_shooting_frame(sf).get_calibration('side').get_projection(angle)
+
     return f(xyz)
 
 
@@ -104,7 +114,7 @@ def rgb_and_polylines(snapshot, angle, selected=None, ranks=None):
     return img, polylines_px
 
 
-##### polyline analysis #####
+# ===== polyline analysis =====================================================================================
 
 def quantile_point(pl, q):
     pl = np.array(pl)
