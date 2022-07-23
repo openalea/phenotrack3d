@@ -25,7 +25,7 @@ If you use PhenoTrack3D to your research, cite:
     doi: https://doi.org/10.1101/2022.07.19.500623 
     
 ```latex
-@article {Daviet2022.07.19.500623,
+@article {daviet22,
 	author = {Daviet, Benoit and Fernandez, Romain and Cabrera-Bosquet, Lloren{\c c} and Pradal, Christophe and Fournier, Christian},
 	title = {PhenoTrack3D: an automatic high-throughput phenotyping pipeline to track maize organs over time},
 	elocation-id = {2022.07.19.500623},
