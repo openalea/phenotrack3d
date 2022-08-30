@@ -134,8 +134,10 @@ class TrackedPlant:
 
         """
 
-        # specific to Phenoarch / ZA17 plant naming system
-        plantid = int(vmsi_list[0].metainfo.plant[:4])
+        # # specific to Phenoarch / ZA17 plant naming system
+        # plantid = int(vmsi_list[0].metainfo.plant[:4])
+        # update for ZA22 # TODO change this !
+        plantid = int(vmsi_list[0].metainfo.plant.split('/')[0])
 
         # ===== sort vmsi objects by time =================================================================
 
