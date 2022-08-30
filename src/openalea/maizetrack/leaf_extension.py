@@ -182,7 +182,8 @@ def display_leaf_extension(binary, polylines_sk, polylines_phm_2d, extension_pol
     plt.figure()
     plt.imshow(image / 255.)
 
-def leaf_extension(vmsi, binaries, shooting_frame, display_parameters = (None, False, False, False)):
+
+def leaf_extension(vmsi, binaries, projections, display_parameters = (None, False, False, False)):
     """
 
     Args:
@@ -214,7 +215,8 @@ def leaf_extension(vmsi, binaries, shooting_frame, display_parameters = (None, F
         polylines_sk = skeleton_branches(binaries2[angle])
 
         # phenomenal polylines projected in 2D
-        polylines_phm_2d = [phm3d_to_px2d(pl, shooting_frame, angle) for pl in polylines_phm]
+        f_2dto_3d = projections[angle]
+        polylines_phm_2d = [f_2dto_3d(pl) for pl in polylines_phm]
 
         # compute leaf extension factor for each phenomenal leaf (if a result is found)
         extension_factors, extension_polylines = compute_extension(polylines_phm_2d, polylines_sk)
@@ -225,7 +227,7 @@ def leaf_extension(vmsi, binaries, shooting_frame, display_parameters = (None, F
             #display_leaf_extension(binaries[angle], polylines_sk, polylines_phm_2d, extension_polylines)
             full_polylines_phm = [vmsi.get_leaf_order(k).get_highest_polyline().polyline
                                   for k in range(1, 1 + vmsi.get_number_of_leaf())]
-            full_polylines_phm_2d = [phm3d_to_px2d(pl, shooting_frame, angle) for pl in full_polylines_phm]
+            full_polylines_phm_2d = [f_2dto_3d(pl) for pl in full_polylines_phm]
             display_leaf_extension(binaries2[angle], polylines_sk, full_polylines_phm_2d, extension_polylines,
                                    show_sk=show_sk, show_phm=show_phm, show_ext=show_ext)
 
