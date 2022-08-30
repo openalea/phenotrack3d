@@ -94,6 +94,7 @@ def abnormal_stem(vmsi_list, dist_threshold=100):
 
 # ============================================================================================================
 
+
 def xyz_last_mature(vmsi):
 
     # xyz position of the last mature leaf insertion
@@ -117,7 +118,7 @@ def savgol_smoothing_function(x, y, dw, polyorder, repet):
     # x2, y2 = savgol_filter((x2, y2), window_length=w, polyorder=polyorder)
     x2, y2 = x, y
     for k in range(repet):
-        x2, y2 = savgol_filter((x2, y2), window_length=w, polyorder=polyorder)
+        x2, y2 = savgol_filter((x2, y2), window_length=max((w, polyorder + 1)), polyorder=polyorder)
 
     # TODO : bricolage ! trouver une fonction de lissage monotone
     # monotony

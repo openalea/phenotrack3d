@@ -192,7 +192,7 @@ class TrackedPlant:
          computation of growing leaves tracking """
         for snapshot in self.snapshots:
             for leaf in snapshot.leaves:
-                # polyline starting from insertion point
+                # polyline starting from insertion point # TODO : or the contrary ?
                 leaf.highest_pl = simplify(leaf.get_highest_polyline().polyline, new_length)
                 # polyline starting from stem base
                 leaf.real_pl = simplify(leaf.real_longest_polyline(), new_length)
@@ -225,14 +225,14 @@ class TrackedPlant:
             # remove old leaves (that could have a different shape)
             leaves = leaves[:nmax]
 
-            vec_mean = np.mean(np.array([l.vec for l in leaves]), axis=0)
-            dists = [np.sum(abs(l.vec - vec_mean)) for l in leaves]
-
-            ref_skeleton[rank] = leaves[np.argmin(dists)]
+            if leaves:
+                vec_mean = np.mean(np.array([l.vec for l in leaves]), axis=0)
+                dists = [np.sum(abs(l.vec - vec_mean)) for l in leaves]
+                ref_skeleton[rank] = leaves[np.argmin(dists)]
 
         if display:
             if has_pgl_display:
-                plot_leaves([ref_skeleton[r] for r in ranks], ranks)
+                plot_leaves(list(ref_skeleton.values()), list(ref_skeleton.keys()))
             else:
                 warnings.warn('PlantGL not available')
 
@@ -251,7 +251,7 @@ class TrackedPlant:
                 leaf.info['pm_leaf_number_tracking'] = rank + 1
 
     def align_mature(self, gap=12.35, gap_extremity_factor=0.2, direction=1, n_previous=5000, w_h=0.03, w_l=0.004,
-                     rank_attribution=True):
+                     rank_attribution=True, remove_senescence=False):
         """
         alignment and rank attributions in a time-series of sequences of leaves.
         Step 1 : use a multiple sequence alignment algorithm to align the sequences.
@@ -289,7 +289,13 @@ class TrackedPlant:
 
         # init order attribute of each snapshot, with only mature leaves:
         for snapshot in self.snapshots:
-            snapshot.order = [i for i, l in enumerate(snapshot.leaves) if l.info['pm_label'] == 'mature_leaf']
+            # TODO maj 15/06/2022, only for ZA17
+            if remove_senescence:
+                zbase = {'elcom_2_c1_wide': -730, 'elcom_2_c2_wide': -690}
+                snapshot.order = [i for i, l in enumerate(snapshot.leaves) if l.info['pm_label'] == 'mature_leaf' and
+                                  l.real_longest_polyline()[-1][2] - zbase[snapshot.metainfo.shooting_frame] > 10]
+            else:
+                snapshot.order = [i for i, l in enumerate(snapshot.leaves) if l.info['pm_label'] == 'mature_leaf']
 
         # time-series of sequences of vectors (sequences have different lengths, all vectors have the same size)
         sequences = [np.array([snapshot.leaves[i].vec for i in snapshot.order]) for snapshot in self.snapshots]
@@ -299,7 +305,9 @@ class TrackedPlant:
 
         # update order attributes
         for i, order in enumerate(alignment_matrix):
-            self.snapshots[i].order = list(order)
+            #self.snapshots[i].order = list(order)
+            # TODO maj 15/06/2022 /!\
+            self.snapshots[i].order = [o if o == -1 else self.snapshots[i].order[o] for o in order]
 
         # Step 2 - abnormal ranks removing
         # ==============================================
