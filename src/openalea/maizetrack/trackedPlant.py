@@ -405,12 +405,12 @@ class TrackedPlant:
             for i, leaf in enumerate(snapshot.leaves):
                 mature = leaf.info['pm_label'] == 'mature_leaf'
                 h, l, a = (leaf.height, leaf.length, leaf.azimuth)
-                df.append([self.plantid, snapshot.metainfo.timestamp, mature,
+                df.append([snapshot.metainfo.task, snapshot.metainfo.timestamp, mature,
                            leaf.info['pm_leaf_number'], leaf.info['pm_leaf_number_tracking'], annotation[i],
                            h, l, a, leaf.info['pm_length_extended']])
 
         # l = normal phenomenal length. l_extended = length after leaf extension
-        df = pd.DataFrame(df, columns=['plantid', 'timestamp', 'mature',
+        df = pd.DataFrame(df, columns=['task', 'timestamp', 'mature',
                                        'rank_phenomenal', 'rank_tracking', 'rank_annotation',
                                        'h', 'l', 'a', 'l_extended'])
 
