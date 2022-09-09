@@ -3,9 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from openalea.phenomenal import object as phm_obj
-from openalea.maizetrack.phenomenal_display import plot_vg, plot_sk
+from openalea.maizetrack.phenomenal_display import *
 
-from alinea.phenoarch.cache import snapshot_index
+from alinea.phenoarch.cache import snapshot_index, load_collar_detection
 from alinea.phenoarch.platform_resources import get_ressources
 from alinea.phenoarch.meta_data import plant_data
 from PIL import Image
@@ -19,11 +19,81 @@ cache_client, image_client, binary_image_client = get_ressources(exp, cache='X:'
 index = snapshot_index(exp, image_client=image_client, cache_client=cache_client, binary_image_client=binary_image_client)
 df_plant = plant_data(exp)
 
-VX_DIR = cache_client.cache_dir + '/cache_{}/image3d_voxel4_tol1_notop_pot/'.format(exp)
-SK_DIR = cache_client.cache_dir + '/cache_{}/skeleton_voxel4_tol1_notop_pot_vis4_minpix100/'.format(exp)
-COL_DIR = cache_client.cache_dir + '/cache_{}/collars_voxel4_tol1_notop_pot_vis4_minpix100/'.format(exp)
+VX_DIR = cache_client.cache_dir + '/cache_{}/phenomenal/image3d_voxel4_tol1_notop_pot/'.format(exp)
+SK_DIR = cache_client.cache_dir + '/cache_{}/phenomenal/skeleton_voxel4_tol1_notop_pot_vis4_minpix100/'.format(exp)
+COL_DIR = cache_client.cache_dir + '/cache_{}/deepcollar/collars-temporal_voxel4_tol1_notop_pot_vis4_minpix100/'.format(exp)
+SEG_DIR = cache_client.cache_dir + '/cache_{}/phenomenal/segmentation_voxel4_tol1_notop_pot_vis4_minpix100_force-stem/'.format(exp)
+TRACK_DIR = cache_client.cache_dir + '/cache_{}/phenotrack3d/tracking_voxel4_tol1_notop_pot_vis4_minpix100_force-stem/'.format(exp)
+
+# TODO
+fd = cache_client.cache_dir + '/cache_{}/deepcollar/collars-temporal_voxel4_tol1_notop_pot_vis4_minpix100/'.format(exp)
+f = pd.read_csv(fd + '401_ZM4971_CZL19058_cimmyt_EXPOSE_WW_Rep_4_07_41_ARCH2022-01-10.csv')
+fd = cache_client.cache_dir + '/cache_{}/phenomenal/segmentation_voxel4_tol1_notop_pot_vis4_minpix100_force-stem/'.format(exp)
+f = phm_obj.VoxelSegmentation.read_from_json_gz(fd + '2022-02-02/401_ZM4971_CZL19058_cimmyt_EXPOSE_WW_Rep_4_07_41_ARCH2022-01-10__2022-02-02__4977.json.gz')
+
+df_my_plants = pd.read_csv('data/plants_set_tracking.csv')
+my_plants = list(df_my_plants[df_my_plants['exp'] == exp]['plant'])
 
 sf_col = {'4958': 'r', '4960': 'g', '4961': 'b'}
+
+# for m in meta_snapshots:
+#     m['reconstruction'] = {'voxel_size': 4, 'error_tolerance': 1, 'use_top_image': False,
+#                                         'world_frame': 'pot'}
+#     m['skeletonisation'] = {'required_visible': 4, 'nb_min_pixel': 100}
+#     m['collar_detection'] = {'model_name': '3exp_xyside_99000'}
+
+# ===== check =====================================================================================================
+
+# time
+path = cache_client.cache_dir + '/cache_{}/check_time/vx4/'.format(exp)
+res = []
+for f in os.listdir(path):
+    df = pd.read_csv(path + f)
+    df['plantid'] = int(f.split('.')[0])
+    res.append(df)
+res = pd.concat(res)
+
+selec = res[res['t'] > 0.1]
+for type in selec['type'].unique():
+    s = selec[selec['type'] == type]
+    plt.plot(s['vx_volumne'], s['t'] / 60, '.', label=type)
+plt.legend()
+
+# ===== dataset overview ==========================================================================================
+
+for plant in df_plant['plant'][::10]:
+    plantid = int(plant.split('/')[0])
+    query = index.filter(plant=plant)
+    meta_snapshots = index.get_snapshots(query, meta=True)
+    meta_snapshots = sorted(meta_snapshots, key=lambda k: k.timestamp)
+    plt.plot([m.timestamp for m in meta_snapshots], [plantid] * len(meta_snapshots), 'k.-')
+for plant in my_plants:
+    plantid = int(plant.split('/')[0])
+    query = index.filter(plant=plant)
+    meta_snapshots = index.get_snapshots(query, meta=True)
+    meta_snapshots = sorted(meta_snapshots, key=lambda k: k.timestamp)
+    plt.plot([m.timestamp for m in meta_snapshots], [plantid] * len(meta_snapshots), 'r*')
+
+
+for dir in [VX_DIR, SK_DIR, COL_DIR, SEG_DIR]:
+    files = [f for d in os.listdir(dir) for f in os.listdir(dir + d)]
+    plantids = np.unique([int(f.split('_')[0]) for f in files])
+    print('{} files, {} plants'.format(len(files), len(plantids)))
+
+for i, plantid in enumerate(plantids):
+    plant = df_plant[df_plant['pot'] == plantid].iloc[0]['plant']
+    query = index.filter(plant=plant)
+    meta_snapshots = index.get_snapshots(query, meta=True)
+    meta_snapshots = sorted(meta_snapshots, key=lambda k: k.timestamp)
+    plt.plot([m.timestamp for m in meta_snapshots], [i] * len(meta_snapshots), 'k.-')
+
+    missing = []
+    for m in meta_snapshots:
+        sk_path = SK_DIR + '{0}/{1}__{0}__{2}.json.gz'.format(m.daydate, m.plant.replace('/', '_'), m.task)
+        if not os.path.isfile(sk_path):
+            print(sk_path)
+            missing.append(m.timestamp)
+    plt.plot(missing, [i] * len(missing), 'r*')
 
 # =================================================================================================================
 
@@ -31,37 +101,71 @@ sf_col = {'4958': 'r', '4960': 'g', '4961': 'b'}
 plantid 437: pb collars 2D -> 3D  ====> OK ! 
 plantid 2305 : F1 sous pot, F2 10px au dessus pot. dur a differencier
 plantid 1953 : environ 30px de dif entre 2 cols vers le haut
+
+plantid 731 : croissance très particulière de la tige
 """
+
+# ===== seg / tracking =========================================================================================
+
+for plant in my_plants:
+
+    # plant = df_plant[df_plant['pot'] == plantid].iloc[0]['plant']
+    query = index.filter(plant=plant)
+    meta_snapshots = index.get_snapshots(query, meta=True)
+    meta_snapshots = sorted(meta_snapshots, key=lambda k: k.timestamp)
+
+    col_path = COL_DIR + '{}.csv'.format(plant.replace('/', '_'))
+    if os.path.isfile(col_path):
+        collars = pd.read_csv(col_path)
+        plt.figure(plant)
+        plt.plot(collars['timestamp'], collars['z_3d'], 'k.')
+
+    tracking = pd.read_csv(TRACK_DIR + '{}.csv'.format(plant.replace('/', '_')))
+
+# seg vs collar
+plt.plot(collars['timestamp'], collars['z_3d'], 'k.')
+tr = tracking[tracking['mature']]
+for r in tr['rank_tracking'].unique():
+    s = tr[tr['rank_tracking'] == r]
+    plt.plot(s['timestamp'], s['h'], 'o', color=PALETTE[r - 1] / 255.)
+# for seg in segs:
+#     leaves = seg.get_mature_leafs()
+#     plt.plot([seg.info['t']] * len(leaves), [l.info['pm_z_base_voxel'] for l in leaves], 'ro')
+
+segs = []
+for m in meta_snapshots:
+    try:
+        seg_path = SEG_DIR + '{0}/{1}__{0}__{2}.json.gz'.format(m.daydate, m.plant.replace('/', '_'), m.task)
+        seg = phm_obj.VoxelSegmentation.read_from_json_gz(seg_path)
+        seg.info['t'] = m.timestamp
+        segs.append(seg)
+    except:
+        print('error', m.daydate)
+
+seg = segs[-2]
+plot_vmsi([seg])
+
+
+
+
+leaves = [l for seg in segs for l in seg.get_mature_leafs()]
+ranks = [l.info['pm_leaf_number_tracking'] - 1 for l in leaves]
+plot_leaves(leaves, ranks)
+
+for seg in segs:
+    leaves = seg.get_mature_leafs()
+    # leaves = sorted(leaves, key=lambda k: k.info['pm_leaf_number']) # topological order
+    ranks = [l.info['pm_leaf_number_tracking'] - 1 for l in leaves]
+    sq = ['x' if k in ranks else '-' for k in range(20)]
+    print(' '.join(sq))
 
 # ===== collars =================================================================================================
 
-plantids = np.unique([int(f.split('_')[0]) for d in os.listdir(COL_DIR) for f in os.listdir(COL_DIR + d)])
-
-plantid = plantids[0]
-
-plant = df_plant[df_plant['pot'] == plantid].iloc[0]['plant']
-query = index.filter(plant=plant)
-meta_snapshots = index.get_snapshots(query, meta=True)
-meta_snapshots = sorted(meta_snapshots, key=lambda k: k.timestamp)
-
-collars = []
-for m in meta_snapshots:
-    col_path = COL_DIR + '{0}/{1}__{0}__{2}.csv'.format(m.daydate, m.plant.replace('/', '_'), m.task)
-    if os.path.isfile(col_path):
-        df = pd.read_csv(col_path)
-        df['t'] = m.timestamp
-        df['sf'] = m.shooting_frame
-        df['task'] = m.task
-        collars.append(df)
-collars = pd.concat(collars)
-
-s = collars[collars['score'] > 0.95]
-
 # plt.figure('3D')
-plt.plot(s['t'], s['z_3d'], '.')
+plt.plot(collars['timestamp'], collars['z_3d'], '.')
 
 plt.figure('2D')
-plt.plot(s['task'], 2448 - s['y_2d'], 'k.')
+plt.plot(collars['timestamp'], 2448 - collars['y_2d'], 'k.')
 
 # ===== debug collar ======================================
 
@@ -133,7 +237,8 @@ plt.plot(s['task'], s['zbis'], 'k.')
 
 # ===== visu ====================================================================================================
 
-m = next(m for m in meta_snapshots if m.task == 4974)
+# m = next(m for m in meta_snapshots if m.task == 4974)
+m = meta_snapshots[-1]
 
 # vx_path = VX_DIR + '{0}/{1}__{0}__{2}.csv'.format(m.daydate, m.plant.replace('/', '_'), m.task)
 # vx = phm_obj.VoxelGrid.read_from_csv(vx_path)
@@ -143,16 +248,27 @@ col_path = COL_DIR + '{0}/{1}__{0}__{2}.csv'.format(m.daydate, m.plant.replace('
 col = pd.read_csv(col_path)
 col = col[col['score'] > 0.95]
 
+seg_path = SEG_DIR + '{0}/{1}__{0}__{2}.json.gz'.format(m.daydate, m.plant.replace('/', '_'), m.task)
+seg = phm_obj.VoxelSegmentation.read_from_json_gz(seg_path)
+
 for angle in [k * 30 for k in range(12)]:
 
     i_angle = next(i for i, (v, a) in enumerate(zip(m.view_type, m.camera_angle)) if a == angle and v == 'side')
     rgb = cv2.cvtColor(cv2.imread(image_client.rootdir + m.path[i_angle]), cv2.COLOR_BGR2RGB)
-
     f_projection = cache_client.load_calibration(m.shooting_frame).get_projection(id_camera='side', rotation=angle,
                                                                                   world_frame='pot')
 
     plt.figure(angle)
     plt.imshow(rgb)
+
+    for l in seg.get_mature_leafs():
+        vx = np.array(list(l.voxels_position()))
+        vx = f_projection(vx)
+        plt.plot(vx[:, 0], vx[:, 1], 'b.')
+        pl = np.array(l.real_longest_polyline())
+        pl = f_projection(pl)
+        plt.plot(pl[:, 0], pl[:, 1], 'y.-')
+
     # plt.ylim((2050, 1875))
     # plt.xlim((925, 1150))
     # vx_2d = f_projection(vx.voxels_position)

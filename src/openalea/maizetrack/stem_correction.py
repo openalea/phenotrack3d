@@ -109,7 +109,7 @@ def xyz_last_mature(vmsi):
     return xyz
 
 
-def savgol_smoothing_function(x, y, dw, polyorder, repet):
+def savgol_smoothing_function(x, y, dw, polyorder, repet, monotony=True):
 
     w = int(len(x) / dw)
     w = w if w % 2 else w + 1  # odd
@@ -121,9 +121,9 @@ def savgol_smoothing_function(x, y, dw, polyorder, repet):
         x2, y2 = savgol_filter((x2, y2), window_length=max((w, polyorder + 1)), polyorder=polyorder)
 
     # TODO : bricolage ! trouver une fonction de lissage monotone
-    # monotony
-    for i in range(1, len(y2)):
-        y2[i] = max([max(y2[:i]), y2[i]])
+    if monotony:
+        for i in range(1, len(y2)):
+            y2[i] = max([max(y2[:i]), y2[i]])
 
     # interpolating function
     f = UnivariateSpline(x2, y2)
