@@ -13,9 +13,9 @@ from PIL import Image
 import cv2
 import pandas as pd
 
-exp = 'ZA22'
+exp = 'ZA17'
 
-cache_client, image_client, binary_image_client = get_ressources(exp, cache='X:', studies='Z:', nasshare2='Y:')
+cache_client, image_client, binary_image_client, calibration_client = get_ressources(exp, cache='X:', studies='Z:', nasshare2='Y:')
 index = snapshot_index(exp, image_client=image_client, cache_client=cache_client, binary_image_client=binary_image_client)
 df_plant = plant_data(exp)
 
@@ -25,11 +25,11 @@ COL_DIR = cache_client.cache_dir + '/cache_{}/deepcollar/collars-temporal_voxel4
 SEG_DIR = cache_client.cache_dir + '/cache_{}/phenomenal/segmentation_voxel4_tol1_notop_pot_vis4_minpix100_force-stem/'.format(exp)
 TRACK_DIR = cache_client.cache_dir + '/cache_{}/phenotrack3d/tracking_voxel4_tol1_notop_pot_vis4_minpix100_force-stem/'.format(exp)
 
-# TODO
-fd = cache_client.cache_dir + '/cache_{}/deepcollar/collars-temporal_voxel4_tol1_notop_pot_vis4_minpix100/'.format(exp)
-f = pd.read_csv(fd + '401_ZM4971_CZL19058_cimmyt_EXPOSE_WW_Rep_4_07_41_ARCH2022-01-10.csv')
-fd = cache_client.cache_dir + '/cache_{}/phenomenal/segmentation_voxel4_tol1_notop_pot_vis4_minpix100_force-stem/'.format(exp)
-f = phm_obj.VoxelSegmentation.read_from_json_gz(fd + '2022-02-02/401_ZM4971_CZL19058_cimmyt_EXPOSE_WW_Rep_4_07_41_ARCH2022-01-10__2022-02-02__4977.json.gz')
+# # TODO
+# fd = cache_client.cache_dir + '/cache_{}/deepcollar/collars-temporal_voxel4_tol1_notop_pot_vis4_minpix100/'.format(exp)
+# f = pd.read_csv(fd + '401_ZM4971_CZL19058_cimmyt_EXPOSE_WW_Rep_4_07_41_ARCH2022-01-10.csv')
+# fd = cache_client.cache_dir + '/cache_{}/phenomenal/segmentation_voxel4_tol1_notop_pot_vis4_minpix100_force-stem/'.format(exp)
+# f = phm_obj.VoxelSegmentation.read_from_json_gz(fd + '2022-02-02/401_ZM4971_CZL19058_cimmyt_EXPOSE_WW_Rep_4_07_41_ARCH2022-01-10__2022-02-02__4977.json.gz')
 
 df_my_plants = pd.read_csv('data/plants_set_tracking.csv')
 my_plants = list(df_my_plants[df_my_plants['exp'] == exp]['plant'])
@@ -45,7 +45,7 @@ sf_col = {'4958': 'r', '4960': 'g', '4961': 'b'}
 # ===== check =====================================================================================================
 
 # time
-path = cache_client.cache_dir + '/cache_{}/check_time/vx4/'.format(exp)
+path = cache_client.cache_dir + '/cache_ZA22/check_time/vx4/'
 res = []
 for f in os.listdir(path):
     df = pd.read_csv(path + f)
@@ -64,9 +64,12 @@ plt.legend()
 for plant in df_plant['plant'][::10]:
     plantid = int(plant.split('/')[0])
     query = index.filter(plant=plant)
-    meta_snapshots = index.get_snapshots(query, meta=True)
-    meta_snapshots = sorted(meta_snapshots, key=lambda k: k.timestamp)
-    plt.plot([m.timestamp for m in meta_snapshots], [plantid] * len(meta_snapshots), 'k.-')
+    if not (type(query) == pd.core.frame.DataFrame):
+        print('no meta : ', plant)
+    else:
+        meta_snapshots = index.get_snapshots(query, meta=True)
+        meta_snapshots = sorted(meta_snapshots, key=lambda k: k.timestamp)
+        plt.plot([m.timestamp for m in meta_snapshots], [plantid] * len(meta_snapshots), 'k.-')
 for plant in my_plants:
     plantid = int(plant.split('/')[0])
     query = index.filter(plant=plant)
@@ -105,6 +108,12 @@ plantid 1953 : environ 30px de dif entre 2 cols vers le haut
 plantid 731 : croissance très particulière de la tige
 """
 
+# ===== vx4 vs vx8 =============================================================================================
+
+plantids_vx4 = [int(p[:4]) for p in os.listdir(TRACK_DIR)]
+plantids_vx8 = [int(p[:4]) for p in os.listdir(TRACK_DIR.replace('voxel4', 'voxel8'))]
+plants = [p for p in my_plants if int(p[:4]) in plantids_vx4 and int(p[:4]) in plantids_vx8]
+
 # ===== seg / tracking =========================================================================================
 
 for plant in my_plants:
@@ -123,11 +132,11 @@ for plant in my_plants:
     tracking = pd.read_csv(TRACK_DIR + '{}.csv'.format(plant.replace('/', '_')))
 
 # seg vs collar
-plt.plot(collars['timestamp'], collars['z_3d'], 'k.')
-tr = tracking[tracking['mature']]
-for r in tr['rank_tracking'].unique():
-    s = tr[tr['rank_tracking'] == r]
-    plt.plot(s['timestamp'], s['h'], 'o', color=PALETTE[r - 1] / 255.)
+    plt.plot(collars['timestamp'], collars['z_3d'], 'k.')
+    tr = tracking[tracking['mature']]
+    for r in tr['rank_tracking'].unique():
+        s = tr[tr['rank_tracking'] == r]
+        plt.plot(s['timestamp'], s['h'], 'o', color=PALETTE[r - 1] / 255.)
 # for seg in segs:
 #     leaves = seg.get_mature_leafs()
 #     plt.plot([seg.info['t']] * len(leaves), [l.info['pm_z_base_voxel'] for l in leaves], 'ro')
