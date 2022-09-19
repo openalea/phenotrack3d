@@ -42,6 +42,31 @@ sf_col = {'4958': 'r', '4960': 'g', '4961': 'b'}
 #     m['skeletonisation'] = {'required_visible': 4, 'nb_min_pixel': 100}
 #     m['collar_detection'] = {'model_name': '3exp_xyside_99000'}
 
+# ===== gif =======================================================================================================
+
+plant = df_plant[df_plant['pot'] == 1424].iloc[0]['plant']
+query = index.filter(plant=plant)
+
+meta_snapshots = index.get_snapshots(query, meta=True)
+meta_snapshots = meta_snapshots[:-18]
+
+imgs = []
+for m in meta_snapshots:
+    i_angle = next(i for i, (v, a) in enumerate(zip(m.view_type, m.camera_angle)) if v == 'top')
+    rgb = cv2.cvtColor(image_client.imread(m.path[i_angle]), cv2.COLOR_BGR2RGB)
+    rgb = cv2.resize(rgb, (819, 979))
+    imgs.append(rgb)
+
+from PIL import Image
+imgs_gif = [Image.fromarray(np.uint8(img)) for img in imgs]
+fps = 5
+imgs_gif[0].save('data/videos/gif_small_ppt/top_{}fps.gif'.format(fps),
+              save_all=True,
+              append_images=imgs_gif[1:],
+              optimize=True,
+              duration=1000/fps,
+              loop=0)
+
 # ===== check =====================================================================================================
 
 # time
