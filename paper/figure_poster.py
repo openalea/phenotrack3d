@@ -1,9 +1,11 @@
 import os
+import numpy as np
 
 from openalea.maizetrack.local_cache import get_metainfos_ZA17, metainfos_to_paths, check_existence, load_plant
 from openalea.maizetrack.phenomenal_display import PALETTE, plot_vmsi_voxel
 from openalea.maizetrack.trackedPlant import TrackedPlant
 from openalea.plantgl import all as pgl
+
 
 folder = 'local_cache/cache_ZA17/segmentation_voxel4_tol1_notop_vis4_minpix100_stem_smooth_tracking'
 all_files = [folder + '/' + rep + '/' + f for rep in os.listdir(folder) for f in os.listdir(folder + '/' + rep)]
@@ -11,7 +13,7 @@ all_files = [folder + '/' + rep + '/' + f for rep in os.listdir(folder) for f in
 plantids = [313, 316, 329, 330, 336, 348, 424, 439, 461, 474, 794, 832, 905, 907, 915, 925, 931, 940, 959, 1270,
             1276, 1283, 1284, 1301, 1316, 1383, 1391, 1421, 1424, 1434]
 
-plantid = 959 # 1383
+plantid = 348 # 959  # 1383
 
 metainfos = get_metainfos_ZA17(plantid)
 paths = metainfos_to_paths(metainfos, folder=folder)
@@ -23,17 +25,21 @@ plant.load_rank_annotation()
 
 # [2, 12, 22, 32, 45], cam = (0, 41, manuel bloqué, 112)
 
+phm_rank = True
+
 for i in [2, 12, 22, 32, 45]:
 
     snapshot = plant.snapshots[i]
 
     size = snapshot.voxels_size
-    #shapes = []
+    shapes = []
 
     organs = [[(0, 0, 0), snapshot.get_stem()]]
-    for leaf, rank in zip(snapshot.leaves, snapshot.rank_annotation):
-        pass
-        organs.append([tuple(PALETTE[rank]), leaf])
+    colors = np.random.choice(np.arange(18), len(snapshot.leaves), replace=False)
+    for k, (leaf, rank, i_col) in enumerate(zip(snapshot.leaves, snapshot.rank_annotation, colors)):
+        #rank_displayed = k if phm_rank else rank
+        #organs.append([tuple(PALETTE[rank_displayed]), leaf])
+        organs.append([tuple(PALETTE[i_col]), leaf])
 
     ranks = None
 
@@ -49,9 +55,9 @@ for i in [2, 12, 22, 32, 45]:
             vx = pgl.Shape(vx, m)
             shapes.append(vx)
 
-scene = pgl.Scene(shapes)
+    scene = pgl.Scene(shapes)
 
-pgl.Viewer.display(scene)
+    pgl.Viewer.display(scene)
 
 
 
