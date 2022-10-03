@@ -202,6 +202,11 @@ fig.savefig('paper/results/profil_h', bbox_inches='tight')
 
 
 
+# ===== for review, juste change fig title ========================================================================
 
+fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
+ax.tick_params(axis='both', which='major', labelsize=20) # axis number size
+# plt.gca().set_aspect('equal', adjustable='box') # same x y scale
+plt.title('Ligulated leaf length = f(rank)\n- example for one plant', fontsize=26)
 
 
