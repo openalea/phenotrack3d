@@ -50,9 +50,13 @@ df = pd.read_csv('data/pheno.csv')
 
 for code in ['visi_f', 'ligul_f']:
     plt.figure()
-    for exp in df['exp'].unique():
+    for exp, col in zip(df['exp'].unique(), ['r', 'g', 'b']):
         s = df[(df['exp'] == exp) & (df['observationcode'] == code)]
-        plt.plot(s['timestamp'] - np.min(s['timestamp']), s['observation'], 'o', alpha=0.03, label=exp)
+        plt.plot(s['timestamp'] - np.min(s['timestamp']), s['observation'], 'o', color=col, alpha=0.03, label=exp)
+
+        gb = s.groupby('timestamp').mean().reset_index()
+        plt.plot(gb['timestamp'] - np.min(s['timestamp']), gb['observation'], '.-', color=col)
+
     leg = plt.legend()
     for lh in leg.legendHandles:
         lh._legmarker.set_alpha(1)

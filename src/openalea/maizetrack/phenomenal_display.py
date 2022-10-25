@@ -77,7 +77,7 @@ def vmsi_polylines_to_pgl(vmsi, li='all', coli='same', only_mature=False):
     """ convert polylines of a vmsi object from phenomenal to plantGL format """
 
     shapes = []
-    h = 700 # - vmsi.get_stem().info['pm_z_base']
+    h = 0  # - vmsi.get_stem().info['pm_z_base']
     col2 = pgl.Material(pgl.Color3(0, 0, 0))
     col3 = pgl.Material(pgl.Color3(255, 0, 0))
 
@@ -87,7 +87,7 @@ def vmsi_polylines_to_pgl(vmsi, li='all', coli='same', only_mature=False):
         leaves = [vmsi.get_leaf_order(k) for k in li]
 
     if only_mature:
-        leaves = [leaf for leaf in leaves if leaf.info['pm_label'][0]=='m']
+        leaves = [leaf for leaf in leaves if leaf.info['pm_label'][0] == 'm']
 
     for l in range(len(leaves)):
         leaf = leaves[l]
@@ -97,28 +97,23 @@ def vmsi_polylines_to_pgl(vmsi, li='all', coli='same', only_mature=False):
         #col1 = pgl.Material(pgl.Color3(np.random.randint(255), np.random.randint(255), np.random.randint(255)))
 
 
-        if leaf.info['pm_label'][0]=='m':
+        if leaf.info['pm_label'][0] == 'm':
             col1 = pgl.Material(pgl.Color3(0, 128, 255))
-        elif leaf.info['pm_label'][0]=='g':
+        elif leaf.info['pm_label'][0] == 'g':
             #col1 = pgl.Material(pgl.Color3(100, 100, 255))
             col1 = pgl.Material(pgl.Color3(255, 140, 0))
         else:
             col1 = pgl.Material(pgl.Color3(255, 255, 255))
 
-
-        palette = np.array([[255,0,0],[0,255,0],[0,0,255],[255,255,0],[255,0,255],[0,255,255],[255,255,255]])
-        palette = list(palette) + list((palette*0.66).astype(int)) + list((palette*0.33).astype(int))
-
         if coli != 'same':
-            r, g, b = palette[coli[l]]
+            r, g, b = PALETTE[coli[l]]
             col1 = pgl.Material(pgl.Color3(int(r), int(g), int(b)))
-
 
         for k in range(len(segment) - 1):
             # arguments cylindre : centre1, centre2, rayon, nbre segments d'un cercle.
             pos1 = np.array(segment[k]) + np.array([0, 0, h])
             pos2 = np.array(segment[k+1]) + np.array([0, 0, h])
-            cyl = pgl.Extrusion(pgl.Polyline([pos1, pos2]), pgl.Polyline2D.Circle(8, 8))
+            cyl = pgl.Extrusion(pgl.Polyline([pos1, pos2]), pgl.Polyline2D.Circle(2, 8))
             cyl.solid = True  # rajoute 2 cercles aux extremites du cylindre
             cyl = pgl.Shape(cyl, col1)
             shapes.append(cyl)
@@ -143,7 +138,7 @@ def vmsi_polylines_to_pgl(vmsi, li='all', coli='same', only_mature=False):
         # arguments cylindre : centre1, centre2, rayon, nbre segments d'un cercle.
         pos1 = np.array(segment[k]) + np.array([0, 0, h])
         pos2 = np.array(segment[k + 1]) + np.array([0, 0, h])
-        cyl = pgl.Extrusion(pgl.Polyline([pos1, pos2]), pgl.Polyline2D.Circle(8, 8))
+        cyl = pgl.Extrusion(pgl.Polyline([pos1, pos2]), pgl.Polyline2D.Circle(4, 8))
         cyl.solid = True  # rajoute 2 cercles aux extremites du cylindre
         cyl = pgl.Shape(cyl, col2)
         shapes.append(cyl)
@@ -256,7 +251,7 @@ def plot_leaves(leaves, cluster, stem=False):
     """
 
     shapes = []
-    h = 700  # - vmsi.get_stem().info['pm_z_base']
+    h = 0  # - vmsi.get_stem().info['pm_z_base']
 
     for i in range(len(leaves)):
 
@@ -267,12 +262,12 @@ def plot_leaves(leaves, cluster, stem=False):
         r, g, b = PALETTE[cluster[i]]
         col = pgl.Material(pgl.Color3(int(r), int(g), int(b)))
 
-        r = 10 * np.random.random()
+        r = 0  # 10 * np.random.random()
         for k in range(len(segment) - 1):
             # arguments cylindre : centre1, centre2, rayon, nbre segments d'un cercle.
             pos1 = np.array(segment[k]) + np.array([0, 0, h + r])
             pos2 = np.array(segment[k + 1]) + np.array([0, 0, h + r])
-            cyl = pgl.Extrusion(pgl.Polyline([pos1, pos2]), pgl.Polyline2D.Circle(5, 8))
+            cyl = pgl.Extrusion(pgl.Polyline([pos1, pos2]), pgl.Polyline2D.Circle(2, 8))
             cyl.solid = True  # rajoute 2 cercles aux extremites du cylindre
             cyl = pgl.Shape(cyl, col)
             shapes.append(cyl)

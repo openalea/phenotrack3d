@@ -3,9 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from openalea.phenomenal import object as phm_obj
-from openalea.maizetrack.phenomenal_display import *
+import openalea.maizetrack.phenomenal_display as phm_display
 
-from alinea.phenoarch.cache import snapshot_index, load_collar_detection
+from alinea.phenoarch.cache import Cache
 from alinea.phenoarch.platform_resources import get_ressources
 from alinea.phenoarch.meta_data import plant_data
 from PIL import Image
@@ -13,34 +13,287 @@ from PIL import Image
 import cv2
 import pandas as pd
 
-exp = 'ZA17'
+exp = 'ZA20'
 
-cache_client, image_client, binary_image_client, calibration_client = get_ressources(exp, cache='X:', studies='Z:', nasshare2='Y:')
-index = snapshot_index(exp, image_client=image_client, cache_client=cache_client, binary_image_client=binary_image_client)
+cache_client, image_client, binary_image_client, calibration_client = get_ressources(exp, cache='X:',
+                                                                                     studies='Z:',
+                                                                                     nasshare2='Y:')
+parameters = {'reconstruction': {'voxel_size': 4, 'frame': 'pot'},
+              'collar_detection': {'model_name': '3exp_xyside_99000'},
+              'segmentation': {'force_stem': True}}
+cache = Cache(cache_client, image_client, binary_image_client=binary_image_client,
+              calibration_client=calibration_client, parameters=parameters)
+
+index = cache.snapshot_index()
+
 df_plant = plant_data(exp)
-
-VX_DIR = cache_client.cache_dir + '/cache_{}/phenomenal/image3d_voxel4_tol1_notop_pot/'.format(exp)
-SK_DIR = cache_client.cache_dir + '/cache_{}/phenomenal/skeleton_voxel4_tol1_notop_pot_vis4_minpix100/'.format(exp)
-COL_DIR = cache_client.cache_dir + '/cache_{}/deepcollar/collars-temporal_voxel4_tol1_notop_pot_vis4_minpix100/'.format(exp)
-SEG_DIR = cache_client.cache_dir + '/cache_{}/phenomenal/segmentation_voxel4_tol1_notop_pot_vis4_minpix100_force-stem/'.format(exp)
-TRACK_DIR = cache_client.cache_dir + '/cache_{}/phenotrack3d/tracking_voxel4_tol1_notop_pot_vis4_minpix100_force-stem/'.format(exp)
-
-# # TODO
-# fd = cache_client.cache_dir + '/cache_{}/deepcollar/collars-temporal_voxel4_tol1_notop_pot_vis4_minpix100/'.format(exp)
-# f = pd.read_csv(fd + '401_ZM4971_CZL19058_cimmyt_EXPOSE_WW_Rep_4_07_41_ARCH2022-01-10.csv')
-# fd = cache_client.cache_dir + '/cache_{}/phenomenal/segmentation_voxel4_tol1_notop_pot_vis4_minpix100_force-stem/'.format(exp)
-# f = phm_obj.VoxelSegmentation.read_from_json_gz(fd + '2022-02-02/401_ZM4971_CZL19058_cimmyt_EXPOSE_WW_Rep_4_07_41_ARCH2022-01-10__2022-02-02__4977.json.gz')
 
 df_my_plants = pd.read_csv('data/plants_set_tracking.csv')
 my_plants = list(df_my_plants[df_my_plants['exp'] == exp]['plant'])
 
 sf_col = {'4958': 'r', '4960': 'g', '4961': 'b'}
 
-# for m in meta_snapshots:
-#     m['reconstruction'] = {'voxel_size': 4, 'error_tolerance': 1, 'use_top_image': False,
-#                                         'world_frame': 'pot'}
-#     m['skeletonisation'] = {'required_visible': 4, 'nb_min_pixel': 100}
-#     m['collar_detection'] = {'model_name': '3exp_xyside_99000'}
+""""
+LIST OF BUGS
+
+ZA22
+ - 2156: trop grand dt ==> critère rang absolu fait sauter un rang
+
+TODO
+- calcul width phm
+- phm ratio length / width F1 vs F2
+
+"""
+
+# ===== ZA20 ====================================================================================================
+
+# ZA20 : filter plants
+plants = list(index.plant_index[index.plant_index['rep'].str.contains('EPPN')]['plant'])
+plantid_moche = [434]
+
+for plant in plants[::10]:
+    meta_snapshots = index.get_snapshots(index.filter(plant=plant), meta=True)
+    # plt.plot([m.timestamp for m in meta_snapshots], [meta_snapshots[0].pot] * len(meta_snapshots), 'k.-')
+
+    # remove late last image
+    meta_snapshots = [m for m in meta_snapshots if m.timestamp < 1588000000]
+
+    m, angle = meta_snapshots[-10], 60
+    rgb_path = next(p for (v, a, p) in zip(m.view_type, m.camera_angle, m.path) if v == 'side' and a == angle)
+    rgb = cv2.cvtColor(cache.image_client.imread(rgb_path), cv2.COLOR_BGR2RGB)
+    plt.figure('{}_{}'.format(m.pot, m.genotype))
+    plt.imshow(rgb)
+
+# stem : all plants
+path = 'X:\phenoarch_cache\cache_ZA22\deepcollar\collar-temporal_voxel4_tol1_notop_pot_vis4_minpix100'
+for f in list(np.random.permutation(os.listdir(path))):
+    plantid = int(f.split('_')[0])
+    plant = next(p for p in plants if int(p.split('/')[0]) == int(plantid))
+    meta_snapshots = index.get_snapshots(index.filter(plant=plant), meta=True)
+
+    collars = cache.load_collar_temporal(meta_snapshots[0])
+    # plt.figure(meta_snapshots[0].pot)
+    # plt.plot(collars['timestamp'], collars['z_3d'], 'k.')
+    gb = collars.groupby('task')['timestamp', 'z_stem'].mean().reset_index()
+    col = {'WW': 'blue', 'WD1': 'orange', 'WD2': 'red'}[meta_snapshots[0].scenario]
+    plt.plot(gb['timestamp'], gb['z_stem'], '-', color=col, alpha=0.5, linewidth=0.7)
+
+# stem : per genotype
+s_index = index.plant_index[index.plant_index['plant'].isin(plants)]
+genotype = 'EPPN7_L'
+plants = s_index[s_index['genotype'] == genotype]['plant']
+for plant in plants:
+    meta_snapshots = index.get_snapshots(index.filter(plant=plant), meta=True)
+    collars = cache.load_collar_temporal(meta_snapshots[0])
+    gb = collars.groupby('task')['timestamp', 'z_stem'].mean().reset_index()
+    col = {'WW': 'blue', 'WD1': 'orange', 'WD2': 'red'}[meta_snapshots[0].scenario]
+    plt.plot(gb['timestamp'], gb['z_stem'], '-', color=col, alpha=0.5, linewidth=0.7)
+
+# pheno data and tiller
+pheno = pd.read_csv('data/pheno_ZA20.csv')
+pheno = pheno[pheno['plantid'].isin([int(p.split('/')[0]) for p in plants])]
+plantids_tiller = np.array(sorted(pheno[pheno['observationcode'] == 'tiller_number']['plantid'].unique()))
+
+# ===== test pot rotation =======================================================================================
+
+from openalea.phenomenal.calibration import CalibrationFrame
+from alinea.phenoarch.reconstruction import world_transform
+
+plantid = 112
+plant = next(p for p in plants if int(p.split('/')[0]) == plantid)
+meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
+meta_snapshots = [m for m in meta_snapshots if '2020-02-14' <= m.daydate <= '2020-04-01']
+
+
+df_rotation = pd.read_csv('data/ZA20/pot_rotation.csv')
+s_rotation = df_rotation[(df_rotation['plantid'] == plantid)]
+
+
+# before rotation correction
+all_pos = []
+for m in meta_snapshots:
+    print(m.task in list(s_rotation['task']))
+    vx = cache.load_voxelgrid(m)
+    all_pos += vx.voxels_position
+vx.voxels_position = np.array(all_pos)
+phm_display.plot_vg(vx)
+
+# after rotation correction
+all_pos = []
+for m in meta_snapshots[5:][::3]:
+    if m.task in list(s_rotation['task']):
+
+        calibration = cache.load_calibration(m['shooting_frame'])
+        pot_frame = calibration.frames['pot']
+        pot_angle = s_rotation[s_rotation['task'] == m.task]['rotation'].iloc[0]
+        print(pot_angle)
+        # pot_angle=60
+        pot_angle_rad = np.radians(pot_angle)
+        plant_frame = CalibrationFrame.from_tuple((0, 0, pot_frame._pos_z, 0, 0, pot_frame._rot_z - pot_angle_rad))
+        vx = cache.load_voxelgrid(m)
+        vx2 = world_transform(vx, calibration, new_world_frame_name='plant_frame', new_world_frame=plant_frame.get_frame())
+        # phm_display.plot_vg(vx2)
+
+    # vx = cache.load_voxelgrid(m)
+    all_pos += list(vx2.voxels_position)
+vx.voxels_position = np.array(all_pos)
+phm_display.plot_vg(vx)
+
+# ===== outputs visualisation ===================================================================================
+
+"""
+- Pot rotation (ex: plantid 1, voir ZA20/rotation)
+- Binarisation bof (ex: plantid 1, 02-21, manque une bonne partie dans la reconstruction)
+- Reajustement manuel F1 vs F2 necessaire, a moins d'avoir des meilleurs binaires ?
+
+plantid 78 : tracking mauvais, a cause rotation ?
+
+TODO
+-test alignement a partir d'un t au milieu (~4-5 f ligulé?)
+-surveiller alignement pour : 36, 199, 438 (deletion ?), 445
+"""
+
+"""
+50 plants examined manually :
+[1, 3, 20, 28, 36, 40, 55, 59, 60, 63, 72, 78, 83, 84,  90,  93,  98, 119, 146, 154, 157, 189, 197, 199, 207, 220, 
+228, 236, 239, 257, 280, 282, 283, 284, 288, 295, 300, 311, 319, 364, 373, 387, 403, 434, 438, 440, 445, 455, 456, 460]
+"""
+
+plantid = 1338
+plant = next(p for p in plants if int(p.split('/')[0]) == plantid)
+print(plant)
+meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
+tracking = cache.load_tracking(meta_snapshots[0])
+
+# ===== collars + tracking
+
+collars = cache.load_collar_temporal(meta_snapshots[0])
+tr = tracking[tracking['mature']]
+
+plt.figure(meta_snapshots[0].pot)
+plt.plot(collars['timestamp'], collars['z_3d'], 'k.')
+for r in tr['rank_tracking'].unique():
+    s = tr[tr['rank_tracking'] == r]
+    if r != 0:
+        plt.plot(s['timestamp'], s['h'], 'o', color=np.array(phm_display.PALETTE)[r - 1] / 255.)
+    else:
+        plt.plot(s['timestamp'], s['h'], 'ko', fillstyle='none', markersize=10)
+
+# ===== image (+ seg)
+
+m, angle = meta_snapshots[8], 60
+
+for k, m in enumerate(meta_snapshots):
+
+    rgb_path = next(p for (v, a, p) in zip(m.view_type, m.camera_angle, m.path) if v == 'side' and a == angle)
+    print(os.path.isfile('Z:/' + rgb_path))
+    rgb = cv2.cvtColor(cache.image_client.imread(rgb_path), cv2.COLOR_BGR2RGB)
+    # rgb = cv2.resize(rgb, tuple((np.array(rgb.shape)[[1, 0]] / 4).astype(int)))
+    plt.figure(m.daydate)
+    plt.imshow(rgb)
+    plt.imsave('data/ZA20/rotation/{}_{}_{}_{}.png'.format(m.pot, k, angle, m.daydate), rgb)
+
+    seg = cache.load_segmentation(m)
+    projection = cache.load_calibration(m.shooting_frame).get_projection(id_camera='side', rotation=angle,
+                                                       world_frame=cache.parameters['reconstruction']['frame'])
+    pl = projection(np.array(seg.get_stem().get_highest_polyline().polyline))
+    plt.plot(pl[:, 0], pl[:, 1], 'r-')
+    for leaf in seg.get_leafs():
+        pl = projection(np.array(leaf.real_longest_polyline()))
+        plt.plot(pl[:, 0], pl[:, 1], '-', color=('b' if leaf.info['pm_label'] == 'mature_leaf' else 'orange'))
+
+    plt.savefig('data/ZA20/{}.png'.format(k))
+
+# ===== 3D single t
+
+for angle in [k * 30 for k in range(12)]:
+    bin_path = next(p for (v, a, p) in zip(m.view_type, m.camera_angle, m.binary_path) if v == 'side' and a == angle)
+    bin = cv2.cvtColor(cache.image_client.imread('Y:/lepseBinaries/' + bin_path), cv2.COLOR_BGR2RGB)
+    plt.figure(angle)
+    plt.imshow(bin)
+
+phm_display.plot_vg(cache.load_voxelgrid(m))
+phm_display.plot_sk(cache.load_voxelskeleton(m))
+phm_display.plot_vmsi([cache.load_segmentation(m)])
+
+sk = cache.load_voxelskeleton(m)
+pos = sk.position()
+
+# ====== 3D all t
+
+phm_display.plot_vmsi([cache.load_segmentation(m) for m in meta_snapshots if m.task in tracking['task'].unique()])
+
+phm_display.plot_vmsi([cache.load_segmentation(m) for m in meta_snapshots if m.task in tracking['task'].unique()],
+                      only_mature=True)
+
+segs = {m.task: cache.load_segmentation(m) for m in meta_snapshots if m.task in tracking['task'].unique()}
+tr = tracking[tracking['mature']]
+leaves, ranks = [], []
+for _, row in tr.iterrows():
+    # if 1584500000 < row.timestamp < 1584600000:
+    leaves.append(segs[row.task].get_leaf_order(row.rank_phenomenal))
+    ranks.append(row.rank_tracking - 1)
+phm_display.plot_leaves(leaves, ranks)
+
+
+# ===== 3D reconstruction over time
+
+xyz_list = [np.array(cache.load_voxelgrid(m).voxels_position) for m in meta_snapshots[1:-1]]
+for k, xyz in enumerate(xyz_list[::5]):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.view_init(elev=20, azim=40)
+    for i, f in enumerate([ax.set_xlim3d, ax.set_ylim3d, ax.set_zlim3d]):
+        f((np.min(np.concatenate(xyz_list), axis=0)[i], np.max(np.concatenate(xyz_list), axis=0)[i]))
+    ax.plot(xyz[:, 0], xyz[:, 1], xyz[:, 2], '.', color='grey', markersize=1)
+    # plt.savefig('data/ZA20/plantid1_vx/{}.png'.format(k))
+
+# ===== stem smooth =============================================================================================
+
+for plant in my_plants:
+    meta_snapshots = index.get_snapshots(index.filter(plant=plant), meta=True)
+
+    try:
+        plt.figure()
+        collars = cache.load_collar_temporal(meta_snapshots[0])
+        gb = collars.groupby('task')['timestamp', 'z_stem'].mean().reset_index()
+        plt.plot(gb['timestamp'], gb['z_stem'], 'k-', alpha=0.2)
+        print(plant)
+    except:
+        pass
+
+# ===== collars + tracking ======================================================================================
+
+for plant in plants:
+
+    # plant = next(p for p in plants if int(p.split('/')[0]) == plantid)
+
+    meta_snapshots = index.get_snapshots(index.filter(plant=plant), meta=True)
+
+    try:
+        collars = cache.load_collar_temporal(meta_snapshots[0])
+        plt.figure(meta_snapshots[0].pot)
+        plt.plot(collars['timestamp'], collars['z_3d'], 'k.')
+
+        tracking = cache.load_tracking(meta_snapshots[0])
+        tr = tracking[tracking['mature']]
+
+        for task in tr['task'].unique():
+            s = tr[tr['task'] == task]
+
+        for r in tr['rank_tracking'].unique():
+            s = tr[tr['rank_tracking'] == r]
+            if r != 0:
+                plt.plot(s['timestamp'], s['h'], 'o', color=np.array(phm_display.PALETTE)[r - 1] / 255.)
+            else:
+                plt.plot(s['timestamp'], s['h'], 'ko', fillstyle='none', markersize=10)
+            # plt.plot([list(tr['task'].unique()).index(t) for t in s['task']], s['h'], 'o',
+            #          color=phm_display.PALETTE[r - 1] / 255.)
+
+        print(plant)
+
+    except:
+        pass
 
 # ===== gif =======================================================================================================
 
@@ -79,11 +332,39 @@ for f in os.listdir(path):
     res.append(df)
 res = pd.concat(res)
 
-selec = res[res['t'] > 0.1]
+selec = res[res['t'] > 1.]
 for type in selec['type'].unique():
     s = selec[selec['type'] == type]
     plt.plot(s['vx_volumne'], s['t'] / 60, '.', label=type)
 plt.legend()
+
+# ===== my_plants overview ========================================================================================
+
+k = 0
+for col, exp in zip(['b', 'g', 'r'], df_my_plants['exp'].unique()):
+    cache_client, image_client, binary_image_client, calibration_client = get_ressources(exp, cache='X:',
+                                                                                         studies='Z:', nasshare2='Y:')
+
+    cache = Cache(cache_client, image_client, binary_image_client=binary_image_client,
+                  calibration_client=calibration_client, parameters=parameters)
+    index = cache.snapshot_index()
+
+    for plant in df_my_plants[df_my_plants['exp'] == exp]['plant']:
+        meta_snapshots = index.get_snapshots(index.filter(plant=plant), meta=True)
+        if meta_snapshots:
+            timestamps = np.array([m.timestamp for m in meta_snapshots])
+            plt.plot(timestamps - min(timestamps), [k] * len(meta_snapshots), col + '.-')
+        else:
+            print(plant)
+        k += 1
+    k += 10
+
+
+
+
+
+
+
 
 # ===== dataset overview ==========================================================================================
 
