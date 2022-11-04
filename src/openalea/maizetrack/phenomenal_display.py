@@ -43,28 +43,27 @@ def plot_sk(skeleton, display_tips=True, stem_segment=None):
 
     segments = skeleton.segments
     colors = [col1] * len(segments)
-    r_cylindres = [6] * len(segments)
 
-    if stem_segment:
-        segments = [s for s in segments if s.polyline[-1] != stem_segment.polyline[-1]]
-        segments.append(stem_segment)
-        r_cylindres = [6] * (len(segments) - 1) + [8]
-        colors = [col1] * (len(segments) - 1) + [col2]
+    # if stem_segment:
+    #     segments = [s for s in segments if s.polyline[-1] != stem_segment.polyline[-1]]
+    #     segments.append(stem_segment)
+    #     r_cylindres = [6] * (len(segments) - 1) + [8]
+    #     colors = [col1] * (len(segments) - 1) + [col2]
 
-    for segment, col, r_cylindre in zip(segments, colors, r_cylindres):
+    for segment, col in zip(segments, colors):
 
         pl = segment.polyline
 
         for k in range(len(pl) - 1):
             # arguments cylindre : centre1, centre2, rayon, nbre segments d'un cercle.
-            cyl = pgl.Extrusion(pgl.Polyline([pl[k], pl[k + 1]]), pgl.Polyline2D.Circle(r_cylindre, 8))
+            cyl = pgl.Extrusion(pgl.Polyline([pl[k], pl[k + 1]]), pgl.Polyline2D.Circle(2, 8))
             cyl.solid = True  # rajoute 2 cercles aux extremites du cylindre
             cyl = pgl.Shape(cyl, col)
             shapes.append(cyl)
 
         if display_tips:
             x, y, z = pl[-1]
-            tip = pgl.Sphere(15)
+            tip = pgl.Sphere(8)
             tip = pgl.Translated(x, y, z, tip)
             tip = pgl.Shape(tip, col)
             shapes.append(tip)

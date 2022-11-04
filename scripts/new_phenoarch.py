@@ -110,34 +110,41 @@ s_rotation = df_rotation[(df_rotation['plantid'] == plantid)]
 
 
 # before rotation correction
-all_pos = []
-for m in meta_snapshots:
+segments = []
+for m in meta_snapshots[5:-1]:
     print(m.task in list(s_rotation['task']))
-    vx = cache.load_voxelgrid(m)
-    all_pos += vx.voxels_position
-vx.voxels_position = np.array(all_pos)
-phm_display.plot_vg(vx)
+    sk = cache.load_voxelskeleton(m)
+    segments += sk.segments
+global_sk = phm_obj.VoxelSkeleton(segments=segments, voxels_size=4)
+phm_display.plot_sk(global_sk)
 
 # after rotation correction
-all_pos = []
-for m in meta_snapshots[5:][::3]:
+segments2 = []
+for m in [meta_snapshots[11], meta_snapshots[10]]:
+    print(m.task)
     if m.task in list(s_rotation['task']):
 
-        calibration = cache.load_calibration(m['shooting_frame'])
-        pot_frame = calibration.frames['pot']
         pot_angle = s_rotation[s_rotation['task'] == m.task]['rotation'].iloc[0]
         print(pot_angle)
         # pot_angle=60
         pot_angle_rad = np.radians(pot_angle)
-        plant_frame = CalibrationFrame.from_tuple((0, 0, pot_frame._pos_z, 0, 0, pot_frame._rot_z - pot_angle_rad))
-        vx = cache.load_voxelgrid(m)
-        vx2 = world_transform(vx, calibration, new_world_frame_name='plant_frame', new_world_frame=plant_frame.get_frame())
-        # phm_display.plot_vg(vx2)
+        sk = cache.load_voxelskeleton(m)
 
-    # vx = cache.load_voxelgrid(m)
-    all_pos += list(vx2.voxels_position)
-vx.voxels_position = np.array(all_pos)
-phm_display.plot_vg(vx)
+        calibration = cache.load_calibration(m['shooting_frame'])
+        frame = calibration.get_frame(frame='pot')
+        pot_frame = calibration.frames['pot']
+        plant_frame = CalibrationFrame.from_tuple((0, 0, pot_frame._pos_z, 0, 0, pot_frame._rot_z - pot_angle_rad))
+
+        new_frame = plant_frame.get_frame()
+        for segment in sk.segments:
+            points = frame.global_point(np.array(segment.polyline))
+            new_points = new_frame.local_point(points)
+            segments2.append(phm_obj.VoxelSegment(polyline=new_points, voxels_position=4, closest_nodes=None))
+
+global_sk2 = phm_obj.VoxelSkeleton(segments=segments2, voxels_size=4)
+phm_display.plot_sk(global_sk2)
+
+# vx2 = world_transform(vx, calibration, new_world_frame_name='plant_frame', new_world_frame=plant_frame.get_frame())
 
 # ===== outputs visualisation ===================================================================================
 
