@@ -168,5 +168,3 @@ for plant in plants:
 
 
 
-
-
