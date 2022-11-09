@@ -136,9 +136,10 @@ class TrackedPlant:
 
         # plantid = int(vmsi_list[0].metainfo.pot)
 
-        # ===== sort vmsi objects by time =================================================================
-
-        vmsi_list = sorted(vmsi_list, key=lambda k: k.metainfo.timestamp)
+        # verify temporal order of the time-series
+        timestamps = [v.metainfo.timestamp for v in vmsi_list]
+        if timestamps != sorted(timestamps):
+            raise Exception('objects need to be ordered by temporal order')
 
         # ===== anomaly detection =========================================================================
 
@@ -400,7 +401,7 @@ class TrackedPlant:
             for i, leaf in enumerate(snapshot.leaves):
                 mature = leaf.info['pm_label'] == 'mature_leaf'
                 h, l, a = (leaf.height, leaf.length, leaf.azimuth)
-                df.append([snapshot.metainfo.task, snapshot.metainfo.timestamp, mature,
+                df.append([int(snapshot.metainfo.task), snapshot.metainfo.timestamp, mature,
                            leaf.info['pm_leaf_number'], ranks[i], annotation[i],
                            h, l, a, leaf.info['pm_length_extended']])
 

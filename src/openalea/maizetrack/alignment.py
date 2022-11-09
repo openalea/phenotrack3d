@@ -238,7 +238,7 @@ def multi_alignment(sequences, gap, gap_extremity_factor=1., direction=1, n_prev
         rx, ry = needleman_wunsch(X, Y, gap, gap_extremity_factor=gap_extremity_factor)
 
         # update all sequences from sq0 to sq yi
-        aligned_sequences = insert_gaps(aligned_sequences, xi, rx) # xi = sequences that all have already been aligned
+        aligned_sequences = insert_gaps(aligned_sequences, xi, rx)  # xi = sequences that all have already been aligned
         aligned_sequences = insert_gaps(aligned_sequences, [yi], ry)
 
     # convert list of aligned sequences (all having the same length) in a matrix of vector indexes (-1 = gap)

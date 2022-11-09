@@ -13,7 +13,7 @@ from PIL import Image
 import cv2
 import pandas as pd
 
-exp = 'ZA20'
+exp = 'ZA22'
 
 cache_client, image_client, binary_image_client, calibration_client = get_ressources(exp, cache='X:',
                                                                                      studies='Z:',
@@ -32,6 +32,9 @@ df_my_plants = pd.read_csv('data/plants_set_tracking.csv')
 my_plants = list(df_my_plants[df_my_plants['exp'] == exp]['plant'])
 
 sf_col = {'4958': 'r', '4960': 'g', '4961': 'b'}
+
+if exp == 'ZA22':
+    plants = [p for p in my_plants if int(p.split('/')[0]) not in [1580, 2045]]
 
 """"
 LIST OF BUGS
@@ -118,7 +121,7 @@ df = pd.DataFrame(df, columns=['plantid', 'dr'])
 from openalea.phenomenal.calibration import CalibrationFrame
 from alinea.phenoarch.reconstruction import world_transform
 
-plantid = 112
+plantid = 1
 plant = next(p for p in plants if int(p.split('/')[0]) == plantid)
 meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
 meta_snapshots = [m for m in meta_snapshots if '2020-02-14' <= m.daydate <= '2020-04-01']
@@ -190,7 +193,7 @@ TODO
 228, 236, 239, 257, 280, 282, 283, 284, 288, 295, 300, 311, 319, 364, 373, 387, 403, 434, 438, 440, 445, 455, 456, 460]
 """
 
-plantid = 438
+plantid = 93
 plant = next(p for p in plants if int(p.split('/')[0]) == plantid)
 print(plant)
 meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
