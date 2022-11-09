@@ -380,12 +380,13 @@ class TrackedPlant:
     #
     #     return res
 
-    def get_dataframe(self, load_anot=True):
+    def get_dataframe(self, load_anot=False):
         """
         Summarize data for all snapshots that were tracked, in a dataframe
         """
 
         # if a ground-truth annotation is found, it is saved in the dataframe
+        # TODO deprecated. (plantid not used anymore). Use anot path or anot csv as input of the function ?
         if load_anot:
             self.load_rank_annotation()
 
