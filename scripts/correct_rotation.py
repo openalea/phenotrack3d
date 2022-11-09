@@ -80,7 +80,7 @@ def binary_pot_360(images, bin_threshold=140, xlim=(1004, 1049), ylim=(2037, 221
 def pot_rotation(images_time_series):
 
     # extract a 360 degree flat binarization of each pot in the time-series
-    pots360 = [binary_pot_360(images) for images in images_time_series]
+    pots360 = [binary_pot_360(rgb_snapshot) for rgb_snapshot in images_time_series]
 
     pot_ref = pots360[0]
     rotations = [0]
@@ -100,11 +100,12 @@ def pot_rotation(images_time_series):
 
     return rotations
 
+rotations = pot_rotation(all_images)
+
 plt.figure()
 plt.imshow(np.sum(np.array(mean_spectrums), axis=0), cmap='Greys')
 plt.figure()
 plt.imshow(np.sum(np.array(output), axis=0), cmap='Greys')
-
 
 
 
@@ -127,6 +128,43 @@ for plantid in df['plantid'].unique():
     plt.plot(s['timestamp'], rot, 'k-', linewidth=0.7)
 
 
+# ===== test in modulor ==============================================================================================
+
+from multiprocessing import Pool
+from alinea.phenoarch.cache import Cache
+from alinea.phenoarch.platform_resources import get_ressources
+
+exp = 'ZA20'
+
+cache_client, image_client, binary_image_client, calibration_client = get_ressources(exp)
+parameters = {'reconstruction': {'voxel_size': 4, 'frame': 'pot'},
+              'collar_detection': {'model_name': '3exp_xyside_99000'},
+              'segmentation': {'force_stem': True}}
+cache = Cache(cache_client, image_client, binary_image_client=binary_image_client,
+              calibration_client=calibration_client, parameters=parameters)
+cache.setup_cache()
+
+index = cache.snapshot_index()
+
+# specific to ZA20
+plants = list(index.plant_index[index.plant_index['rep'].str.contains('EPPN')]['plant'])
+plant = '0112/ZM4535/EPPN11_L/WW/EPPN_Rep_4/02_52/ARCH2020-02-03'
+
+
+def rotate_plant(plant):
+    print(plant)
+    meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
+    meta_snapshots = [m for m in meta_snapshots if '2020-02-14' <= m.daydate <= '2020-04-01']
+    cache.meta_pot_rotation(meta_snapshots)
+
+
+def mp_full_exp(plants=plants, nb_cpu=11):
+    with Pool(nb_cpu) as p:
+        p.map(rotate_plant, plants)
+
+for plant in plants:
+    print(plant)
+    rotate_plant(plant)
 
 
 

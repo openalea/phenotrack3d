@@ -96,6 +96,25 @@ plantids_tiller = np.array(sorted(pheno[pheno['observationcode'] == 'tiller_numb
 
 # ===== test pot rotation =======================================================================================
 
+# explore
+fd = 'X:/phenoarch_cache/cache_ZA20/pot_rotation/'
+df = []
+for f in os.listdir(fd):
+    dfi = pd.read_csv(fd + f)
+    rotations = dfi['rotation']
+    for k in range(len(rotations) - 1):
+        a1, a2 = rotations[[k, k + 1]]
+        q_test = [-3, -2, -1, 0, 1, 2, 3]
+        q = q_test[np.argmin([np.abs(a1 - (a2 + 360 * q)) for q in q_test])]
+        # a2_corrected = a2 if np.abs(a2 - a1) < np.abs((a2 - np.sign(a2) * 360) - a1) % 360 else a2 - np.sign(a2) * 360
+        rotations[k + 1] = a2 + 360 * q
+    print(f, np.max(np.diff(rotations)))
+    plt.plot(rotations, 'k.-')
+    df.append([int(f.split('.')[0]), np.max(rotations) - np.min(rotations)])
+df = pd.DataFrame(df, columns=['plantid', 'dr'])
+
+
+
 from openalea.phenomenal.calibration import CalibrationFrame
 from alinea.phenoarch.reconstruction import world_transform
 
@@ -108,11 +127,10 @@ meta_snapshots = [m for m in meta_snapshots if '2020-02-14' <= m.daydate <= '202
 df_rotation = pd.read_csv('data/ZA20/pot_rotation.csv')
 s_rotation = df_rotation[(df_rotation['plantid'] == plantid)]
 
-
 # before rotation correction
 segments = []
 for m in meta_snapshots[5:-1]:
-    print(m.task in list(s_rotation['task']))
+    print(m.task)
     sk = cache.load_voxelskeleton(m)
     segments += sk.segments
 global_sk = phm_obj.VoxelSkeleton(segments=segments, voxels_size=4)
@@ -120,12 +138,12 @@ phm_display.plot_sk(global_sk)
 
 # after rotation correction
 segments2 = []
-for m in [meta_snapshots[11], meta_snapshots[10]]:
-    print(m.task)
+xyz_list = []
+for m in meta_snapshots[5:-1]:
     if m.task in list(s_rotation['task']):
 
         pot_angle = s_rotation[s_rotation['task'] == m.task]['rotation'].iloc[0]
-        print(pot_angle)
+        print(m.task, pot_angle)
         # pot_angle=60
         pot_angle_rad = np.radians(pot_angle)
         sk = cache.load_voxelskeleton(m)
@@ -136,10 +154,14 @@ for m in [meta_snapshots[11], meta_snapshots[10]]:
         plant_frame = CalibrationFrame.from_tuple((0, 0, pot_frame._pos_z, 0, 0, pot_frame._rot_z - pot_angle_rad))
 
         new_frame = plant_frame.get_frame()
+
         for segment in sk.segments:
             points = frame.global_point(np.array(segment.polyline))
             new_points = new_frame.local_point(points)
             segments2.append(phm_obj.VoxelSegment(polyline=new_points, voxels_position=4, closest_nodes=None))
+
+        vx = cache.load_voxelgrid(m)
+        xyz_list.append(new_frame.local_point(vx.voxels_position))
 
 global_sk2 = phm_obj.VoxelSkeleton(segments=segments2, voxels_size=4)
 phm_display.plot_sk(global_sk2)
@@ -153,11 +175,13 @@ phm_display.plot_sk(global_sk2)
 - Binarisation bof (ex: plantid 1, 02-21, manque une bonne partie dans la reconstruction)
 - Reajustement manuel F1 vs F2 necessaire, a moins d'avoir des meilleurs binaires ?
 
-plantid 78 : tracking mauvais, a cause rotation ?
+plantid 78 : tracking mauvais, a cause d'une insertion
+plantid 36 : bizarre, devrait pas rater
+plantid 199: decalage qui pourrait être eviter
 
 TODO
 -test alignement a partir d'un t au milieu (~4-5 f ligulé?)
--surveiller alignement pour : 36, 199, 438 (deletion ?), 445
+-surveiller alignement pour : 199, 438 (deletion ?), 445
 """
 
 """
@@ -166,7 +190,7 @@ TODO
 228, 236, 239, 257, 280, 282, 283, 284, 288, 295, 300, 311, 319, 364, 373, 387, 403, 434, 438, 440, 445, 455, 456, 460]
 """
 
-plantid = 1338
+plantid = 438
 plant = next(p for p in plants if int(p.split('/')[0]) == plantid)
 print(plant)
 meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
@@ -245,15 +269,16 @@ phm_display.plot_leaves(leaves, ranks)
 
 # ===== 3D reconstruction over time
 
-xyz_list = [np.array(cache.load_voxelgrid(m).voxels_position) for m in meta_snapshots[1:-1]]
-for k, xyz in enumerate(xyz_list[::5]):
+xyz_list = [np.array(cache.load_voxelgrid(m).voxels_position) for m in meta_snapshots[5:-1]]
+for k, xyz in enumerate(xyz_list[::1]):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     ax.view_init(elev=20, azim=40)
     for i, f in enumerate([ax.set_xlim3d, ax.set_ylim3d, ax.set_zlim3d]):
         f((np.min(np.concatenate(xyz_list), axis=0)[i], np.max(np.concatenate(xyz_list), axis=0)[i]))
     ax.plot(xyz[:, 0], xyz[:, 1], xyz[:, 2], '.', color='grey', markersize=1)
-    # plt.savefig('data/ZA20/plantid1_vx/{}.png'.format(k))
+    plt.savefig('data/ZA20/rotation_112/after_{}.png'.format(k))
+    plt.close('all')
 
 # ===== stem smooth =============================================================================================
 
