@@ -32,6 +32,8 @@ class TrackedLeaf(VoxelOrgan):
         self.highest_pl = ()
         self.real_pl = ()
 
+        self.check = {'no_senescence': True, 'no_alignment_anomaly': True}
+
         self.features = {}
         self.vec = np.array([])
 
@@ -338,8 +340,12 @@ class TrackedPlant:
 
             abnormal_ranks = detect_abnormal_ranks(alignment_matrix)
 
-            # update sequence attributes
             for snapshot in snapshots:
+                # save the information that some leaves are removed from the alignment
+                for a in abnormal_ranks:
+                    if snapshot.sequence[a] != -1:
+                        snapshot.leaves[snapshot.sequence[a]].check['no_alignment_anomaly'] = False
+                # update sequence attributes
                 snapshot.sequence = [e for i, e in enumerate(snapshot.sequence) if i not in abnormal_ranks]
 
             print('{}/{} ranks removed after sequence alignment'.format(len(abnormal_ranks), len(alignment_matrix[0])))
@@ -428,14 +434,16 @@ class TrackedPlant:
                 mature = leaf.info['pm_label'] == 'mature_leaf'
                 h, l, a = [leaf.features[k] for k in ['height', 'length', 'azimuth']] \
                     if snapshot.check['valid_features'] else 3 * [None]
+                check_values = list(snapshot.check.values()) + list(leaf.check.values())
+                check_columns = ['task_' + c for c in snapshot.check.keys()] + ['leaf_' + c for c in leaf.check.keys()]
                 df.append([int(snapshot.metainfo.task), snapshot.metainfo.timestamp, mature,
                            leaf.info['pm_leaf_number'], ranks[i], annotation[i], h, l, a,
-                           leaf.info['pm_length_extended']] + list(snapshot.check.values()))
+                           leaf.info['pm_length_extended']] + check_values)
 
         # l = normal phenomenal length. l_extended = length after leaf extension
         df = pd.DataFrame(df, columns=['task', 'timestamp', 'mature',
                                        'rank_phenomenal', 'rank_tracking', 'rank_annotation',
-                                       'h', 'l', 'a', 'l_extended'] + list(snapshot.check.keys()))
+                                       'h', 'l', 'a', 'l_extended'] + check_columns)
 
         return df
 

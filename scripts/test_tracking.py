@@ -33,7 +33,8 @@ if exp == 'ZA22':
 
 # ===================================================================================================================
 
-plant = '93/ZM5045/F331/gene_atlas/Gene_Atlas/WW/Rep_5/02_33/ARCH2022-01-10'
+plantid = 636  # 93
+plant = next(p for p in plants if int(p.split('/')[0]) == plantid)
 meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
 
 segs = []
