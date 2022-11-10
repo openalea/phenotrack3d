@@ -142,15 +142,15 @@ class TrackedPlant:
         for i in range(1, len(timestamps)):
             if (timestamps[i] - timestamps[i - 1]) > discontinuity * dt_median:
                 checks_continuity[i:] = False
-        print('{} time points with a time gap'.format(len(checks_continuity) - sum(checks_continuity)))
+        # print('{} time points with a time gap'.format(len(checks_continuity) - sum(checks_continuity)))
 
         # stem shape problems
         checks_stem = [not b for b in abnormal_stem(vmsi_list)]
-        print('{} time points with stem shape abnormality'.format(len(checks_stem) - sum(checks_stem)))
+        # print('{} time points with stem shape abnormality'.format(len(checks_stem) - sum(checks_stem)))
 
         # missing data (specific to Phenomenal)
         checks_data = [not missing_data(v) for v in vmsi_list]
-        print('{} time points with missing data'.format(len(checks_data) - sum(checks_data)))
+        # print('{} time points with missing data'.format(len(checks_data) - sum(checks_data)))
 
         # checks = list((np.array(checks_data) * np.array(checks_stem) * np.array(checks_continuity)).astype(int))
 
@@ -185,7 +185,7 @@ class TrackedPlant:
         """ computed a vector for each leaf of each snapshot. Used for the alignment of mature leaves """
 
         snapshots = [s for s in self.snapshots if s.check['valid_features']]
-        print('{} snapshots not used in features_extraction()'.format(len(self.snapshots) - len(snapshots)))
+        # print('{} snapshots not used in features_extraction()'.format(len(self.snapshots) - len(snapshots)))
         for snapshot in snapshots:
             for leaf in snapshot.leaves:
 
@@ -272,7 +272,7 @@ class TrackedPlant:
     #         for leaf, rank in zip(snapshot.leaves, ranks):
     #             leaf.info['pm_leaf_number_tracking'] = rank + 1
 
-    def align_mature(self, gap=12.35, gap_extremity_factor=0.2, direction=1, n_previous=5000, w_h=0.03, w_l=0.004,
+    def align_mature(self, gap=12.35, gap_extremity_factor=0.2, start=1, n_previous=5000, w_h=0.03, w_l=0.004,
                      rank_attribution=True, remove_senescence=False):
         """
         alignment and rank attributions in a time-series of sequences of leaves.
@@ -304,8 +304,7 @@ class TrackedPlant:
 
         """
 
-        # Step 1 - multi sequence alignment
-        # ==============================================
+        # ===== Step 1 - multi sequence alignment =====================================================================
 
         self.features_extraction(w_h=w_h, w_l=w_l)
 
@@ -325,7 +324,7 @@ class TrackedPlant:
         sequences = [np.array([snapshot.leaves[i].vec for i in snapshot.sequence]) for snapshot in snapshots]
 
         # sequence alignment
-        alignment_matrix = multi_alignment(sequences, gap, gap_extremity_factor, direction, n_previous)
+        alignment_matrix = multi_alignment(sequences, gap, gap_extremity_factor, n_previous, start)
 
         # update sequence attributes
         for i, sequence in enumerate(alignment_matrix):
@@ -333,8 +332,7 @@ class TrackedPlant:
             # TODO maj 15/06/2022 /!\
             snapshots[i].sequence = [k if k == -1 else snapshots[i].sequence[k] for k in sequence]
 
-        # Step 2 - abnormal ranks removing
-        # ==============================================
+        # ===== Step 2 - From relative leaf ranks to absolute leaf ranks (abnormal ranks removing) ====================
 
         if rank_attribution:
 

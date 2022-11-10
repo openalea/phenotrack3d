@@ -258,7 +258,7 @@ def plot_leaves(leaves, cluster, stem=False):
             segment = leaves[i].real_longest_polyline() # for leaf
         else:
             segment = leaves[i].get_highest_polyline().polyline # for stem
-        r, g, b = PALETTE[cluster[i]]
+        r, g, b = PALETTE[cluster[i]] if i != -1 else [150, 150, 150]
         col = pgl.Material(pgl.Color3(int(r), int(g), int(b)))
 
         r = 0  # 10 * np.random.random()

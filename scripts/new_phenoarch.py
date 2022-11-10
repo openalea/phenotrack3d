@@ -193,7 +193,7 @@ TODO
 228, 236, 239, 257, 280, 282, 283, 284, 288, 295, 300, 311, 319, 364, 373, 387, 403, 434, 438, 440, 445, 455, 456, 460]
 """
 
-plantid = 93
+plantid = 176
 plant = next(p for p in plants if int(p.split('/')[0]) == plantid)
 print(plant)
 meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)

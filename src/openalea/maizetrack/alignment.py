@@ -7,7 +7,6 @@ from openalea.maizetrack.utils import quantile_point, polyline_until_z
 ##########################################################################################################
 
 
-# TODO : replace '-' by -1 ?
 def needleman_wunsch(X, Y, gap, gap_extremity_factor=1.):
     """
     Performs pairwise alignment of profiles X and Y with Needleman-Wunsch algorithm.
@@ -91,10 +90,10 @@ def needleman_wunsch(X, Y, gap, gap_extremity_factor=1.):
             j -= 1
         elif P[i, j] in [3, 5, 7, 9]:
             rx.append(i - 1)
-            ry.append('-')
+            ry.append(-1)  # gap
             i -= 1
         elif P[i, j] in [4, 6, 7, 9]:
-            rx.append('-')
+            rx.append(-1)  # gap
             ry.append(j - 1)
             j -= 1
 
@@ -157,7 +156,7 @@ def alignment_score(x, y, gap_extremity):
     if score:
         score = np.mean(score)
     else:
-        score = gap_extremity # TODO : bricolage
+        score = gap_extremity  # TODO : hack
 
     return score
 
@@ -172,7 +171,7 @@ def insert_gaps(all_sequences, seq_indexes, alignment):
     ----------
     all_sequences : list of 2D arrays
     seq_indexes : list of int
-    alignment : list of int and str ('-')
+    alignment : list of int
         result from needleman_wunsch()
 
     Returns
@@ -181,7 +180,7 @@ def insert_gaps(all_sequences, seq_indexes, alignment):
     """
 
     all_sequences2 = deepcopy(all_sequences)
-    gap_indexes = [i for i, e in enumerate(alignment) if e == '-']
+    gap_indexes = [i for i, e in enumerate(alignment) if e == -1]
 
     vec_len = max([len(vec) for seq in all_sequences for vec in seq])
 
@@ -196,12 +195,12 @@ def insert_gaps(all_sequences, seq_indexes, alignment):
     return all_sequences2
 
 
-def multi_alignment(sequences, gap, gap_extremity_factor=1., direction=1, n_previous=0):
+def multi_alignment(sequences, gap, gap_extremity_factor=1., n_previous=0, start=0):
     """
 
     Multi sequence alignment algorithm to align n sequences, using a progressive method. At each step, a sequence (Y)
-    is aligned with a matrix (X) corresponding to the alignement of k sequences, resulting in the alignment of
-    k + 1 sequences. Each pairwise alignment of X vs Y is based on needleman-wunsch algorithm.
+    is aligned with a matrix (X) corresponding to a profile (i.e. the alignement of k sequences) resulting in the
+    alignment of k + 1 sequences. Each pairwise alignment of X vs Y is based on needleman-wunsch algorithm.
 
     Parameters
     ----------
@@ -211,8 +210,9 @@ def multi_alignment(sequences, gap, gap_extremity_factor=1., direction=1, n_prev
         penalty parameter to add a gap
     gap_extremity_factor : float
         parameter to modify the gap penalty on sequence extremity positions, relatively to gap value.
-        For example, if gap = 5 and gap_extremity_factor = 0.6, Then the penalty for terminal gaps is equal to 3.
+        For example, if gap = 5 and gap_extremity_factor = 0.6, Then the penalty for terminal gaps equals 3.
     direction : int
+        # TODO update
         if direction == 1 : align from t=1 to t=tmax. If direction == -1 : align from t=tmax to t=1.
     n_previous : int
 
@@ -224,13 +224,21 @@ def multi_alignment(sequences, gap, gap_extremity_factor=1., direction=1, n_prev
 
     aligned_sequences = deepcopy(sequences)
 
-    start = int(-direction + 0.5)
-    for k in range(start, len(aligned_sequences) + (start - 1)):
+    # init
+    # (k0 -> 0) then (k0 -> n)
+    # TODO : only tested with n_previous = inf
+    k_start = len(aligned_sequences) - 1 if start == -1 else start
+    alignment_order = np.array(list(range(0, k_start + 1)[::-1]) + list(range(k_start + 1, len(aligned_sequences))))
+    for k in range(1, len(aligned_sequences)):
+        xi = alignment_order[:k]  # ref
+        yi = alignment_order[k]
 
-        xi = direction * np.arange(start, k + 1)  # ref
-        yi = direction * (k + 1)
+    # start = int(-direction + 0.5)
+    # for k in range(start, len(aligned_sequences) + (start - 1)):
+    #     xi = direction * np.arange(start, k + 1)  # ref
+    #     yi = direction * (k + 1)
 
-        # select the 2 motifs to align
+        # select the 2 profiles to align
         X = np.array([aligned_sequences[i] for i in xi[-n_previous:]])
         Y = np.array([aligned_sequences[yi]])
 

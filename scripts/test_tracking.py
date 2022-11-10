@@ -30,12 +30,34 @@ my_plants = list(df_my_plants[df_my_plants['exp'] == exp]['plant'])
 
 if exp == 'ZA22':
     plants = [p for p in my_plants if int(p.split('/')[0]) not in [1580, 2045]]
+elif exp == 'ZA20':
+    plants = list(index.plant_index[index.plant_index['rep'].str.contains('EPPN')]['plant'])
+
+# ===== explore tracking results ====================================================================================
+
+for plant in plants:
+    meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
+    try:
+        tracking = cache.load_tracking(meta_snapshots[0])
+        for check in ['task_time_continuity', 'task_valid_stem', 'task_valid_features']:
+            checks = tracking.groupby('task')[check].mean()
+            print('{}/{} no {}'.format(len(checks) - np.sum(checks), len(checks), check))
+        print(meta_snapshots[0].pot, len(tracking) - np.sum(tracking['leaf_no_alignment_anomaly']))
+    except:
+        pass
 
 # ===================================================================================================================
 
-plantid = 636  # 93
+plantid = 36  # 93
 plant = next(p for p in plants if int(p.split('/')[0]) == plantid)
+
+plant = plants[7]
+
+print(plant)
+
 meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
+
+# ===================================================================================================================
 
 segs = []
 for m in meta_snapshots:
@@ -46,24 +68,30 @@ for m in meta_snapshots:
     except:
         print('{}: cannot load seg'.format(m.daydate))
 
-# ===================================================================================================================
-
-plant = TrackedPlant.load_and_check(segs)
-
 # plant.features_extraction(w_h=0.03, w_l=0.004)
 
-plant.align_mature(direction=1, gap=12.365, w_h=0.03, w_l=0.004, gap_extremity_factor=0.2, n_previous=5000)
-plant.align_growing()
+trackedplant = TrackedPlant.load_and_check(segs)
 
-tracking = plant.get_dataframe()
+trackedplant.align_mature(start=0, gap=12.365, w_h=0.03, w_l=0.004,
+                   gap_extremity_factor=0.2, n_previous=5000)
+# plant.align_growing()
+tracking = trackedplant.get_dataframe()
 
-for check in ['time_continuity', 'valid_stem', 'valid_features']:
+for check in ['task_time_continuity', 'task_valid_stem', 'task_valid_features']:
     checks = tracking.groupby('task')[check].mean()
     print('{}/{} no {}'.format(len(checks) - np.sum(checks), len(checks), check))
 
-segs = {m.task: cache.load_segmentation(m) for m in meta_snapshots if m.task in tracking['task'].unique()}
+# segs = {m.task: cache.load_segmentation(m) for m in meta_snapshots if m.task in tracking['task'].unique()}
 
 tr = tracking[tracking['mature']]
+
+profile = {}
+for r in [1, 2, 3]:
+    s_r = tr[tr['rank_tracking'] == r]
+    s_r = s_r[(s_r['timestamp'] - np.min(s_r['timestamp'])) / 3600 / 24 < 20]
+    profile[r] = round(np.mean(s_r['l_extended']), 1)
+print(profile)
+
 leaves, ranks = [], []
 for _, row in tr.iterrows():
     # if 1584500000 < row.timestamp < 1584600000:
