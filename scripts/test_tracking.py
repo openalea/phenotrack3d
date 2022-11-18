@@ -33,18 +33,54 @@ if exp == 'ZA22':
 elif exp == 'ZA20':
     plants = list(index.plant_index[index.plant_index['rep'].str.contains('EPPN')]['plant'])
 
+# ===== visualise stem ==============================================================================================
+
+from openalea.maizetrack.stem_correction import stem_height_smoothing
+
+plantids = [1657, 1351, 1150, 1118, 1378]
+plants_pb = [next(p for p in plants if int(p.split('/')[0]) == plantid) for plantid in plantids]
+for plant in plants_pb:
+    meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
+
+    try:
+        collars = cache.load_collar_temporal(meta_snapshots[0])
+        plt.figure(meta_snapshots[0].pot)
+        plt.plot(collars['timestamp'], collars['z_3d'], 'k.')
+        plt.plot(collars['timestamp'], collars['z_stem'], 'r-')
+
+        for task in collars['task'].unique():
+            z_top = sorted(collars[collars['task'] == task]['z_3d'])[-20:]
+            z_top_range = max(z_top) - min(z_top)
+            print(z_top_range / np.std(z_top))
+
+
+
+
+        gb = collars.groupby('task')[['timestamp', 'z_3d']].max().reset_index().sort_values('timestamp')
+        f_smoothing = stem_height_smoothing(gb['timestamp'], gb['z_3d'])
+        plt.plot(gb['timestamp'], [f_smoothing(t) for t in gb['timestamp']], 'g-')
+    except:
+        pass
+
+
 # ===== explore tracking results ====================================================================================
 
-for plant in plants:
+res = []
+plants_gap = []
+for k, plant in enumerate(sorted(plants)):
     meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
     try:
         tracking = cache.load_tracking(meta_snapshots[0])
+        row = [meta_snapshots[0].pot, len(tracking.groupby('task'))]
+
         for check in ['task_time_continuity', 'task_valid_stem', 'task_valid_features']:
             checks = tracking.groupby('task')[check].mean()
             print('{}/{} no {}'.format(len(checks) - np.sum(checks), len(checks), check))
-        print(meta_snapshots[0].pot, len(tracking) - np.sum(tracking['leaf_no_alignment_anomaly']))
+            row.append(len(checks) - np.sum(checks))
+        res.append(row)
     except:
         pass
+res = pd.DataFrame(res, columns=['plantid', 'n', 'ano_t', 'ano_stem', 'ano_features'])
 
 # ===================================================================================================================
 

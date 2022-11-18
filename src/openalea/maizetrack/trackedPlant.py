@@ -1,7 +1,7 @@
 """
 Classes for maize leaf tracking and rank attribution, in a time-series of Phenomenal 3D segmentation objects.
 //!\\ In the tracking algorithm, ranks start at 0. But in the final output (stored in the 'pm_leaf_number_tracking'
-attribute of each leaf), ranks start at 1.
+attribute of each leaf), ranks start at 1. (see get_ranks() method)
 """
 
 import os
@@ -77,11 +77,13 @@ class TrackedSnapshot(VoxelSegmentation):
         small example :
         self.leaves = [leaf0, leaf1, leaf2, leaf3]
         self.sequence = [-1, -1, 0, 1, -1, 2, 3, -1]
-        ===> self.get_ranks() returns [2, 3, 5, 6]
+        ===> self.get_ranks() returns [3, 4, 6, 7]
 
-        In the tracking algorithm, ranks start at 0. But in the 'info' attribute of each leaf, ranks start at 1.
+        WARNING : the rank of a leaf is given by its position in TrackedSnapshot.sequence, which starts at 0.
+        But leaf ranks are usually numerated starting from 1: this second option is used in the output from this
+        function.
         """
-        return [self.sequence.index(i) if i in self.sequence else -1 for i in range(len(self.leaves))]
+        return [self.sequence.index(i) + 1 if i in self.sequence else 0 for i in range(len(self.leaves))]
 
 
 class TrackedPlant:
@@ -149,6 +151,7 @@ class TrackedPlant:
         # print('{} time points with stem shape abnormality'.format(len(checks_stem) - sum(checks_stem)))
 
         # missing data (specific to Phenomenal)
+        # TODO: seems to only affect growing leaf: len(leaf.info) = 7 instead of 23.
         checks_data = [not missing_data(v) for v in vmsi_list]
         # print('{} time points with missing data'.format(len(checks_data) - sum(checks_data)))
 
@@ -176,43 +179,59 @@ class TrackedPlant:
 
     # ===========================================================================================================
 
-    def valid_snapshots(self):
-        return [s for s in self.snapshots if all(s.check.values())]
+    def valid_snapshots(self, check_list=None):
+
+        checks = list(self.snapshots[0].check.keys()) if check_list is None else check_list
+        return [s for s in self.snapshots if all([s.check[check] for check in checks])]
 
     # ===== Main methods used for the tracking algorithm ========================================================
 
     def features_extraction(self, w_h, w_l):
-        """ computed a vector for each leaf of each snapshot. Used for the alignment of mature leaves """
+        """ computes a vector for each leaf of each snapshot. Used for exporting these data in a csv (a) and for
+        the alignment of mature leaves (b) """
 
-        snapshots = [s for s in self.snapshots if s.check['valid_features']]
         # print('{} snapshots not used in features_extraction()'.format(len(self.snapshots) - len(snapshots)))
-        for snapshot in snapshots:
+        for snapshot in self.snapshots:
             for leaf in snapshot.leaves:
 
-                # a) save useful leaf features in a 'features' attribute (mostly useful for saving in the output csv)
-                leaf.features['azimuth'] = leaf.info['pm_azimuth_angle']
+                # ===== mature leaves ===========================================================================
+
                 if leaf.info['pm_label'] == 'mature_leaf':
+
+                    # a) complete 'features' attribute for exporting traits in csv
+                    leaf.features['azimuth'] = leaf.info['pm_azimuth_angle']
                     leaf.features['length'] = leaf.info['pm_length']
                     if 'pm_z_base_voxel' in leaf.info:
                         leaf.features['height'] = leaf.info['pm_z_base_voxel']
                     else:
                         leaf.features['height'] = leaf.info['pm_z_base']
                         print('no voxel height !')
-                else:
-                    leaf.features['length'] = leaf.info['pm_length_with_speudo_stem']
-                    leaf.features['height'] = leaf.info['pm_z_base']
 
-                # b) compute a vector from these features for mature leaves alignment
-                a = leaf.features['azimuth'] / 360 * 2 * np.pi  # [0, 360] interval --> [-1, 1] interval
-                leaf.vec = np.array([np.cos(a), np.sin(a), w_h * leaf.features['height'],
-                                     w_l * leaf.features['length']])
+                    # b) compute a vector from these features for mature leaves alignment
+                    a = leaf.features['azimuth'] / 360 * 2 * np.pi  # [0, 360] interval --> [-1, 1] interval
+                    leaf.vec = np.array([np.cos(a), np.sin(a), w_h * leaf.features['height'],
+                                         w_l * leaf.features['length']])
+
+                # ===== growing leaves ===========================================================================
+
+                elif leaf.info['pm_label'] == 'growing_leaf':
+
+                    # a) complete 'features' attribute for exporting traits in csv.
+                    # sometimes, they are missing data due to a bug in phenomenal: needs to be checked.
+                    vars = ['pm_azimuth_angle', 'pm_length_with_speudo_stem', 'pm_z_base']
+                    if not all([var in leaf.info for var in vars]):
+                        leaf.features = {'azimuth': None, 'length': None, 'height': None}
+                    else:
+                        leaf.features = {'azimuth': leaf.info['pm_azimuth_angle'],
+                                         'length': leaf.info['pm_length_with_speudo_stem'],
+                                         'height': leaf.info['pm_z_base']}
 
     def simplify_polylines(self, new_length=50):
         """ simplify the polyline of each leaf in each snapshot (max number of points = 'new_length'), for a faster
          computation of growing leaves tracking """
-        for snapshot in self.valid_snapshots():
+        for snapshot in self.snapshots:
             for leaf in snapshot.leaves:
-                # polyline starting from insertion point # TODO : or the contrary ?
+                # polyline starting from insertion point
                 leaf.highest_pl = simplify(leaf.get_highest_polyline().polyline, new_length)
                 # polyline starting from stem base
                 leaf.real_pl = simplify(leaf.real_longest_polyline(), new_length)
@@ -236,6 +255,7 @@ class TrackedPlant:
 
         ref_skeleton = dict()
 
+        # TODO: no need to avoid "missing_features" check ?
         snapshots = self.valid_snapshots()
 
         ranks = range(len(snapshots[0].sequence))
@@ -308,7 +328,8 @@ class TrackedPlant:
 
         self.features_extraction(w_h=w_h, w_l=w_l)
 
-        snapshots = self.valid_snapshots()
+        # only check 'valid_stem'. 'time_continuity' and valid_features' are not requested for mature leaves.
+        snapshots = self.valid_snapshots(check_list=['valid_stem'])
 
         # init sequence attribute of each snapshot, with only mature leaves:
         for snapshot in snapshots:
@@ -328,7 +349,7 @@ class TrackedPlant:
 
         # update sequence attributes
         for i, sequence in enumerate(alignment_matrix):
-            #self.snapshots[i].sequence = list(sequence)
+            # self.snapshots[i].sequence = list(sequence)
             # TODO maj 15/06/2022 /!\
             snapshots[i].sequence = [k if k == -1 else snapshots[i].sequence[k] for k in sequence]
 
@@ -360,6 +381,7 @@ class TrackedPlant:
 
         self.simplify_polylines()
 
+        # TODO: need for "missing_features" check, so different as for align_mature /!\
         snapshots = self.valid_snapshots()
 
         mature_ref = self.get_ref_skeleton(display=False)
@@ -425,8 +447,10 @@ class TrackedPlant:
 
         for snapshot in self.snapshots:
 
-            annotation = np.array(snapshot.rank_annotation) + 1
-            ranks = np.array(snapshot.get_ranks()) + 1
+            # TODO deprecated: to remove
+            annotation = np.array(snapshot.rank_annotation)
+
+            ranks = np.array(snapshot.get_ranks())
 
             for i, leaf in enumerate(snapshot.leaves):
                 mature = leaf.info['pm_label'] == 'mature_leaf'
@@ -451,71 +475,6 @@ class TrackedPlant:
     #
     #     for snapshot in self.snapshots:
     #         snapshot.image[angle], _ = get_rgb(metainfo=snapshot.metainfo, angle=angle)
-
-    def load_rank_annotation(self, folder='rank_annotation/'):
-        """
-        Load rank annotation for each leaf of each snapshot (-2 = not annotated or annotation not found, -1 = anomaly,
-        0 = rank 1, 1 = rank 2, etc.) Each annotation is associated to the x,y,z tip position of its corresponding leaf,
-        in a csv.
-        """
-
-        # TODO : don't stock annotated ranks in both snapshot and leaf ?
-        # annotation copy in Z:\lepseBinaries\TaggedImages\ARCH2017-03-30\rank_annotation
-        # TODO update: plantid not used anymore.
-        df_path = folder + 'rank_annotation_{}.csv'.format(self.plantid)
-
-        if os.path.isfile(df_path):
-            df = pd.read_csv(df_path)
-
-            for snapshot in self.snapshots:
-                task = snapshot.metainfo.task
-
-                if task not in df['task'].unique():
-                    # a task was not annotated
-                    snapshot.rank_annotation = [-2] * len(snapshot.leaves)
-
-                    for leaf in snapshot.leaves:
-                        leaf.rank_annotation = -2
-                else:
-                    dftask = df[df['task'] == task]
-                    snapshot.rank_annotation = []
-                    for leaf in snapshot.leaves:
-                        tip = leaf.real_longest_polyline()[-1]
-                        dftip = dftask[dftask['leaf_tip'] == str(tip)]
-                        if dftip.empty:
-                            # a leaf was not annotated
-                            snapshot.rank_annotation.append(-2)
-                            leaf.rank_annotation = -2
-                        else:
-                            snapshot.rank_annotation.append(dftip.iloc[0]['rank'])
-                            leaf.rank_annotation = dftip.iloc[0]['rank']
-
-    def save_rank_annotation(self, folder='rank_annotation/'):
-        """
-        Create and save a csv containing rank annotations
-        """
-
-        df = []
-
-        save = True
-
-        for snapshot in self.snapshots:
-
-            # verify that a rank was not asign severals times
-            ranks = [r for r in snapshot.rank_annotation if r not in [-2, -1]]
-            if len(ranks) != len(set(ranks)):
-                print('task', snapshot.metainfo.task, ': several leaves have the same rank ! Cannot save')
-                save = False
-            else:
-                for leaf, rank in zip(snapshot.leaves, snapshot.rank_annotation):
-                    leaf_tip = str(leaf.real_longest_polyline()[-1])
-                    df.append([snapshot.metainfo.task, leaf_tip, rank])
-
-        df = pd.DataFrame(df, columns=['task', 'leaf_tip', 'rank'])
-
-        if save:
-            # TODO deprecated. (plantid not used anymore)
-            df.to_csv(folder + 'rank_annotation_{}.csv'.format(self.plantid), index=False)
 
     # def display(self, dates=None, only_mature=False):
     #     """ 3D display using PlantGL (color=rank) """

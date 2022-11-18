@@ -1,11 +1,9 @@
 import os
 
-import cv2
 import numpy as np
 
 from alinea.phenoarch.shooting_frame import get_shooting_frame
 
-from openalea.maizetrack.phenomenal_display import PALETTE
 from skimage import io
 
 from openalea.phenomenal.calibration import Calibration
@@ -47,71 +45,6 @@ def phm3d_to_px2d(xyz, sf, angle=60):
         f = get_shooting_frame(sf).get_calibration('side').get_projection(angle)
 
     return f(xyz)
-
-
-def rgb_and_polylines(snapshot, angle, selected=None, ranks=None):
-    """
-
-    Parameters
-    ----------
-    snapshot : vmsi with metainfo attribute, or TrackedPlant object
-    angle : int
-    selected
-    ranks
-
-    Returns
-    -------
-
-    """
-
-    # rgb image
-    img = snapshot.image[angle]
-
-    # adding polylines
-    polylines_px = [phm3d_to_px2d(leaf.real_pl, snapshot.metainfo.shooting_frame, angle) for leaf in snapshot.leaves]
-    matures = [leaf.info['pm_label'] == 'mature_leaf' for leaf in snapshot.leaves]
-
-    if ranks is None:
-        ranks = snapshot.rank_annotation
-
-    # plot leaves
-    for i, (pl, c, mature) in enumerate(zip(polylines_px, ranks, matures)):
-
-        if c == -2:
-            col = [0, 0, 0]
-        else:
-            col = [int(x) for x in PALETTE[c]]
-
-        # unknown rank vs known rank
-        if c == -1:
-            leaf_border_col = (0, 0, 0)
-        else:
-            leaf_border_col = (255, 255, 255)
-
-        # selected vs non selected
-        ds = 1
-        if selected == i:
-            ds = 3
-
-        img = cv2.polylines(np.float32(img), [pl.astype(int).reshape((-1, 1, 2))], False, leaf_border_col, 10 * ds)
-        img = cv2.polylines(np.float32(img), [pl.astype(int).reshape((-1, 1, 2))], False, col, 7 * ds)
-
-        # tip if mature
-        if mature:
-            pos = (int(pl[-1][0]), int(pl[-1][1]))
-            img = cv2.circle(np.float32(img), pos, 20, (0, 0, 0), -1)
-
-        # rank number
-        pos = (int(pl[-1][0]), int(pl[-1][1]))
-        img = cv2.putText(img, str(c + 1), pos, cv2.FONT_HERSHEY_SIMPLEX,
-               3, (0, 0, 0), 4, cv2.LINE_AA)
-
-    # write date
-    id = str(int(snapshot.metainfo.plant[:4]))
-    text = 'plantid {} / task {} ({})'.format(id, snapshot.metainfo.task, snapshot.metainfo.daydate)
-    cv2.putText(img, text, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 0), 10, cv2.LINE_AA)
-
-    return img, polylines_px
 
 
 # ===== polyline analysis =====================================================================================
@@ -215,8 +148,7 @@ def missing_data(vmsi):
     if not all([k in vmsi.get_stem().info for k in stem_needed_info]):
         missing = True
 
-    leaf_needed_info = ['pm_position_base', 'pm_z_tip', 'pm_label', 'pm_azimuth_angle',
-                        'pm_length', 'pm_insertion_angle', 'pm_z_tip']
+    leaf_needed_info = ['pm_position_base', 'pm_z_tip', 'pm_label', 'pm_azimuth_angle', 'pm_length']
     for leaf in vmsi.get_leafs():
         if not all([k in leaf.info for k in leaf_needed_info]):
             missing = True

@@ -4,7 +4,7 @@ Script to ecxtract/prepare data  for annotating leaf lengths on images with VGG 
 
 from openalea.maizetrack.utils import best_leaf_angles, get_rgb
 from openalea.maizetrack.local_cache import metainfos_to_paths, get_metainfos_ZA17, load_plant, check_existence
-from openalea.maizetrack.utils import phm3d_to_px2d, shooting_frame_conversion, rgb_and_polylines
+from openalea.maizetrack.utils import phm3d_to_px2d, shooting_frame_conversion
 from openalea.maizetrack.trackedPlant import TrackedPlant
 from openalea.maizetrack.stem_correction import stem_height_smoothing
 from sklearn.metrics import r2_score

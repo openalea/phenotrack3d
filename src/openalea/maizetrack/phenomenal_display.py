@@ -233,7 +233,7 @@ def plot_vmsi_voxel(vmsi, ranks=None):
     pgl.Viewer.display(scene)
 
 
-def plot_leaves(leaves, cluster, stem=False):
+def plot_leaves(leaves, ranks, stem=False, simplify=False):
     """
     display a set of leaves
 
@@ -252,13 +252,13 @@ def plot_leaves(leaves, cluster, stem=False):
     shapes = []
     h = 0  # - vmsi.get_stem().info['pm_z_base']
 
-    for i in range(len(leaves)):
+    for leaf, rank in zip(leaves, ranks):
 
         if stem == False:
-            segment = leaves[i].real_longest_polyline() # for leaf
+            segment = leaf.real_pl if simplify else leaf.real_longest_polyline()  # for leaf
         else:
-            segment = leaves[i].get_highest_polyline().polyline # for stem
-        r, g, b = PALETTE[cluster[i]] if i != -1 else [150, 150, 150]
+            segment = leaf.highest_pl if simplify else leaf.get_highest_polyline().polyline  # for stem
+        r, g, b = PALETTE[rank - 1] if rank != 0 else [90, 90, 90]
         col = pgl.Material(pgl.Color3(int(r), int(g), int(b)))
 
         r = 0  # 10 * np.random.random()

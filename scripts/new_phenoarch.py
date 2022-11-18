@@ -13,7 +13,7 @@ from PIL import Image
 import cv2
 import pandas as pd
 
-exp = 'ZA22'
+exp = 'ZA17'
 
 cache_client, image_client, binary_image_client, calibration_client = get_ressources(exp, cache='X:',
                                                                                      studies='Z:',
