@@ -19,22 +19,21 @@ See LICENSE file for details.
 
 If you use PhenoTrack3D to your research, cite:
 
-    PhenoTrack3D: an automatic high-throughput phenotyping pipeline to track maize organs over time
-    Benoit Daviet, Romain Fernandez, Llorenç Cabrera-Bosquet, Christophe Pradal, Christian Fournier
-    bioRxiv 2022.07.19.500623; 
-    doi: https://doi.org/10.1101/2022.07.19.500623 
+Daviet, B., Fernandez, R., Cabrera-Bosquet, L. et al. PhenoTrack3D: an automatic high-throughput phenotyping pipeline to track maize organs over time. Plant Methods 18, 130 (2022). https://doi.org/10.1186/s13007-022-00961-4
     
 ```latex
 @article {daviet22,
 	author = {Daviet, Benoit and Fernandez, Romain and Cabrera-Bosquet, Lloren{\c c} and Pradal, Christophe and Fournier, Christian},
 	title = {PhenoTrack3D: an automatic high-throughput phenotyping pipeline to track maize organs over time},
-	elocation-id = {2022.07.19.500623},
-	year = {2022},
-	doi = {10.1101/2022.07.19.500623},
-	publisher = {Cold Spring Harbor Laboratory},
-	URL = {https://www.biorxiv.org/content/early/2022/07/20/2022.07.19.500623},
-	eprint = {https://www.biorxiv.org/content/early/2022/07/20/2022.07.19.500623.full.pdf},
-	journal = {bioRxiv}
+	elocation-id = @article{daviet2022phenotrack3d,
+	title={PhenoTrack3D: an automatic high-throughput phenotyping pipeline to track maize organs over time},
+	author={Daviet, Benoit and Fernandez, Romain and Cabrera-Bosquet, Lloren{\c{c}} and Pradal, Christophe and Fournier, Christian},
+	journal={Plant Methods},
+	volume={18},
+	number={1},
+	pages={1--14},
+	year={2022},
+	publisher={Springer}
 }
 
 ```
