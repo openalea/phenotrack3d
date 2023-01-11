@@ -1,8 +1,6 @@
-# TODO : supprimer n_stem_min ?
+# TODO : delete n_stem_min ?
 
 import numpy as np
-from scipy.signal import savgol_filter
-from scipy.interpolate import UnivariateSpline
 from scipy.spatial.distance import directed_hausdorff
 
 
@@ -95,96 +93,96 @@ def abnormal_stem(vmsi_list, dist_threshold=100):
 # ============================================================================================================
 
 
-def xyz_last_mature(vmsi):
-
-    # xyz position of the last mature leaf insertion
-
-    if vmsi.get_mature_leafs() == []:
-        xyz = vmsi.get_stem().real_longest_polyline()[0]
-    else:
-        mature_ins = np.array([l.info['pm_position_base'] for l in vmsi.get_mature_leafs()])
-        mature_ins = mature_ins[mature_ins[:, 2].argsort()]
-        xyz = mature_ins[-1]
-
-    return xyz
-
-
-def savgol_smoothing_function(x, y, dw, polyorder, repet, monotony=True):
-
-    w = int(len(x) / dw)
-    w = w if w % 2 else w + 1  # odd
-
-    # x2, y2 = savgol_filter((x, y), window_length=w, polyorder=polyorder)
-    # x2, y2 = savgol_filter((x2, y2), window_length=w, polyorder=polyorder)
-    x2, y2 = x, y
-    for k in range(repet):
-        # TODO : this function modifies x2 ... find something else
-        x2, y2 = savgol_filter((x2, y2), window_length=max((w, polyorder + 1)), polyorder=polyorder)
-
-    # TODO : bricolage ! trouver une fonction de lissage monotone
-    if monotony:
-        for i in range(1, len(y2)):
-            y2[i] = max([max(y2[:i]), y2[i]])
-
-    # interpolating function
-    f = UnivariateSpline(x2, y2)
-
-    return f
+# def xyz_last_mature(vmsi):
+#
+#     # xyz position of the last mature leaf insertion
+#
+#     if vmsi.get_mature_leafs() == []:
+#         xyz = vmsi.get_stem().real_longest_polyline()[0]
+#     else:
+#         mature_ins = np.array([l.info['pm_position_base'] for l in vmsi.get_mature_leafs()])
+#         mature_ins = mature_ins[mature_ins[:, 2].argsort()]
+#         xyz = mature_ins[-1]
+#
+#     return xyz
 
 
-def ear_anomaly(y, dy):
-
-    i_abnomaly = []
-    for i in range(1, len(y)):
-        y_max = np.max(y[:i])
-        if y_max - y[i] > dy:
-            i_abnomaly.append(i)
-
-    return i_abnomaly
-
-
-def smoothing_function(x, y, dy=None, dw=4, polyorder=2, repet=2):
-
-    if dy is None:
-        i_anomaly = []
-    else:
-        i_anomaly = ear_anomaly(y, dy=dy)
-
-    i_max = max([i for i in range(len(x)) if i not in i_anomaly])
-    x_max = x[i_max]
-
-    y = [val for i, val in enumerate(y) if i not in i_anomaly]
-    x = [val for i, val in enumerate(x) if i not in i_anomaly]
-
-    f = savgol_smoothing_function(x, y, dw=dw, polyorder=polyorder, repet=repet)
-
-    return f, x_max
+# def savgol_smoothing_function(x, y, dw, polyorder, repet, monotony=True):
+#
+#     w = int(len(x) / dw)
+#     w = w if w % 2 else w + 1  # odd
+#
+#     # x2, y2 = savgol_filter((x, y), window_length=w, polyorder=polyorder)
+#     # x2, y2 = savgol_filter((x2, y2), window_length=w, polyorder=polyorder)
+#     x2, y2 = x, y
+#     for k in range(repet):
+#         # TODO : this function modifies x2 ... find something else
+#         x2, y2 = savgol_filter((x2, y2), window_length=max((w, polyorder + 1)), polyorder=polyorder)
+#
+#     # TODO : bricolage ! trouver une fonction de lissage monotone
+#     if monotony:
+#         for i in range(1, len(y2)):
+#             y2[i] = max([max(y2[:i]), y2[i]])
+#
+#     # interpolating function
+#     f = UnivariateSpline(x2, y2)
+#
+#     return f
 
 
-def stem_height_smoothing(t, y, neighbours=3, threshold=0.05):
-    """
-    (Tested on deepcollars outputs)
-    """
+# def ear_anomaly(y, dy):
+#
+#     i_abnomaly = []
+#     for i in range(1, len(y)):
+#         y_max = np.max(y[:i])
+#         if y_max - y[i] > dy:
+#             i_abnomaly.append(i)
+#
+#     return i_abnomaly
 
-    # anomaly detection
-    i_anomaly = []
-    for i in range(len(y)):
-        # check if y[i] is too high compared to the next neighbours
-        y_ngb = np.array(y[(i + 1):(i + 1 + neighbours)])
-        if len(y_ngb) == neighbours and all([y[i] > val for val in y_ngb]) and np.mean(y[i] - y_ngb) / y[i] > threshold:
-            i_anomaly.append(i)
-        # check if y[i] is too low compared to the previous neighbours
-        y_ngb = np.array(y[(i - neighbours):i])
-        if len(y_ngb) == neighbours and all([y[i] < val for val in y_ngb]) and np.mean(y_ngb - y[i]) / np.mean(y_ngb) > threshold:
-            i_anomaly.append(i)
 
-    # anomaly removing
-    t2 = [val for i, val in enumerate(t) if i not in i_anomaly]
-    y2 = [val for i, val in enumerate(y) if i not in i_anomaly]
+# def smoothing_function(x, y, dy=None, dw=4, polyorder=2, repet=2):
+#
+#     if dy is None:
+#         i_anomaly = []
+#     else:
+#         i_anomaly = ear_anomaly(y, dy=dy)
+#
+#     i_max = max([i for i in range(len(x)) if i not in i_anomaly])
+#     x_max = x[i_max]
+#
+#     y = [val for i, val in enumerate(y) if i not in i_anomaly]
+#     x = [val for i, val in enumerate(x) if i not in i_anomaly]
+#
+#     f = savgol_smoothing_function(x, y, dw=dw, polyorder=polyorder, repet=repet)
+#
+#     return f, x_max
 
-    # smoothing
-    f, _ = smoothing_function(t2, y2, dw=6, repet=3)
-    f2 = lambda x: float(min(f(x), max(y2)))
-    return f2
+
+# def stem_height_smoothing(t, y, neighbours=3, threshold=0.05):
+#     """
+#     (Tested on deepcollars outputs)
+#     """
+#
+#     # anomaly detection
+#     i_anomaly = []
+#     for i in range(len(y)):
+#         # check if y[i] is too high compared to the next neighbours
+#         y_ngb = np.array(y[(i + 1):(i + 1 + neighbours)])
+#         if len(y_ngb) == neighbours and all([y[i] > val for val in y_ngb]) and np.mean(y[i] - y_ngb) / y[i] > threshold:
+#             i_anomaly.append(i)
+#         # check if y[i] is too low compared to the previous neighbours
+#         y_ngb = np.array(y[(i - neighbours):i])
+#         if len(y_ngb) == neighbours and all([y[i] < val for val in y_ngb]) and np.mean(y_ngb - y[i]) / np.mean(y_ngb) > threshold:
+#             i_anomaly.append(i)
+#
+#     # anomaly removing
+#     t2 = [val for i, val in enumerate(t) if i not in i_anomaly]
+#     y2 = [val for i, val in enumerate(y) if i not in i_anomaly]
+#
+#     # smoothing
+#     f, _ = smoothing_function(t2, y2, dw=6, repet=3)
+#     f2 = lambda x: float(min(f(x), max(y2)))
+#     return f2
 
 

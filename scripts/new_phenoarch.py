@@ -19,7 +19,7 @@ cache_client, image_client, binary_image_client, calibration_client = get_ressou
                                                                                      studies='Z:',
                                                                                      nasshare2='Y:')
 parameters = {'reconstruction': {'voxel_size': 4, 'frame': 'pot'},
-              'collar_detection': {'model_name': '3exp_xyside_99000'},
+              'collar_detection': {'model_name': '3exp_xyside'},
               'segmentation': {'force_stem': True}}
 cache = Cache(cache_client, image_client, binary_image_client=binary_image_client,
               calibration_client=calibration_client, parameters=parameters)
