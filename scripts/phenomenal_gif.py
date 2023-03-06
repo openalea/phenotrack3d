@@ -105,30 +105,30 @@ for snapshot, img in zip(plant.snapshots, imgs):
     #
     # xyz = xyz_last_mature(snapshot)
     # xy = phm3d_to_px2d(xyz, sf)[0]
-    # img = cv2.circle(img, tuple(xy.astype(int)), 13, (0, 0, 0), -1)
-    # img = cv2.circle(img, tuple(xy.astype(int)), 10, (0, 0, 255), -1)
+    # image = cv2.circle(image, tuple(xy.astype(int)), 13, (0, 0, 0), -1)
+    # image = cv2.circle(image, tuple(xy.astype(int)), 10, (0, 0, 255), -1)
 
     # plot last insertion
     #insertions = np.array([l.info['pm_position_base'] for l in snapshot.get_leafs()])
     #xyz = insertions[np.argmax(insertions[:, 2])]
     #xy = phm3d_to_px2d(xyz, sf)[0]
-    #img = cv2.circle(img, tuple(xy.astype(int)), 13, (0, 0, 0), -1)
-    #img = cv2.circle(img, tuple(xy.astype(int)), 10, (230, 159, 0), -1)
+    #image = cv2.circle(image, tuple(xy.astype(int)), 13, (0, 0, 0), -1)
+    #image = cv2.circle(image, tuple(xy.astype(int)), 10, (230, 159, 0), -1)
 
 
-    #plt.imshow(img.astype(np.uint8))
-    #plt.imshow(img) # only show polylines !
+    #plt.imshow(image.astype(np.uint8))
+    #plt.imshow(image) # only show polylines !
     imgs_phm.append(img)
 
 
 # save_images = True
 # if save_images:
-#     for k, img in enumerate(imgs_phm):
-#         io.imsave('img{}.png'.format(k), img)
+#     for k, image in enumerate(imgs_phm):
+#         io.imsave('image{}.png'.format(k), image)
 
 
 imgs_gif = imgs_phm.copy()
-#imgs_gif = [img[200:-200, 250:-250, :] for img in imgs_gif]
+#imgs_gif = [image[200:-200, 250:-250, :] for image in imgs_gif]
 imgs_gif = [Image.fromarray(np.uint8(img)) for img in imgs_gif]
 fps = 1
 imgs_gif[0].save('gif/animation_id{}_{}fps.gif'.format(plantid, fps),

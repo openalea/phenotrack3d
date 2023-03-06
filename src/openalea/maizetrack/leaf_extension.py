@@ -21,7 +21,6 @@ from openalea.maizetrack.utils import phm3d_to_px2d
 
 
 def polyline_length(pl):
-    # TODO : this function probably already exists in Phenomenal..?
     """
 
     Args:
@@ -46,7 +45,6 @@ def skeleton_branches(img, n_kernel=15, min_length=30):
     """
 
     # dilate image
-    # TODO : try another method
     kernel = np.ones((n_kernel, n_kernel))
     img2 = cv2.dilate(img, kernel, iterations=1)
 

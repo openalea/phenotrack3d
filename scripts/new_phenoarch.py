@@ -644,13 +644,13 @@ for angle, vx_2d in vx_sets.items():
     for x, y in vx_2d:
         img = cv2.circle(img, (round(x), round(y)), 2, (255, 0, 0), -1)
     imgs.append(img)
-#imgs_gif = [img[200:-200, 250:-250, :] for img in imgs_gif]
+#imgs_gif = [image[200:-200, 250:-250, :] for image in imgs_gif]
 imgs_gif = [Image.fromarray(np.uint8(img)) for img in imgs]
 fps = 30
 imgs_gif[0].save('data/videos/id{}_{}fps_vx360.gif'.format(plantid, fps),
                  save_all=True, append_images=imgs_gif[1:], optimize=True, duration=1000/fps, loop=0)
 
-# plt.imshow(img)
+# plt.imshow(image)
 # plt.figure()
 # plt.xlim((xmin, xmax))
 # plt.gca().set_aspect('equal', adjustable='box')

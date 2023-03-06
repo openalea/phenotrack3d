@@ -45,7 +45,7 @@ class Interface:
 
     def display(self, img):
 
-        # img = (2048, 2448) rgb image of plant + polylines
+        # image = (2048, 2448) rgb image of plant + polylines
 
         # resize for display
         img_rs = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
