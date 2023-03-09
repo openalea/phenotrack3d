@@ -1,12 +1,16 @@
 """
-A cv2 tool to annotate leaf ranks on an openalea.maizetrack.trackedPlant.TrackedPlant object, in order to evaluate
-tracking performance.
+A cv2 draft tool to annotate leaf ranks on an time-series of 3D maize plant segmentations.
+
+It can be used to build a ground-truth dataset to evaluate leaf tracking performances, or as manual tool to easily
+refine imperfect tracking outputs.
+
+It was developed to work with the image system of the Phenoarch platform : it would probably need a few adaptations
+to work with other systems.
 """
 
 import cv2
 import numpy as np
-from openalea.maizetrack.phenomenal_display import PALETTE
-from openalea.maizetrack.utils import phm3d_to_px2d
+from openalea.maizetrack.display import PALETTE
 
 
 class Interface:
@@ -35,7 +39,7 @@ class Interface:
 
             s = self.button_size
             for (x_bt, y_bt), button_name in zip(self.buttons_positions, self.buttons):
-                if y_bt < y < y_bt + s and x_bt < x < x_bt + s:
+                if y_bt < y < y_bt + s and x_bt < x < x_bt + int(1.5 * s):
                     self.current_button = button_name
 
     def reset_click(self):
@@ -54,9 +58,9 @@ class Interface:
         # display buttons
         s = self.button_size
         for (x_bt, y_bt), button_name in zip(self.buttons_positions, self.buttons):
-            img_rs = cv2.rectangle(img_rs, (x_bt, y_bt), (x_bt + s, y_bt + s), (255, 255, 255), -1)
-            img_rs = cv2.rectangle(img_rs, (x_bt, y_bt), (x_bt + s, y_bt + s), (0, 0, 0), 5)
-            img_rs = cv2.putText(img_rs, button_name, (x_bt + int(s / 3), y_bt + int(s / 2)),
+            img_rs = cv2.rectangle(img_rs, (x_bt, y_bt), (x_bt + int(1.5 * s), y_bt + s), (255, 255, 255), -1)
+            img_rs = cv2.rectangle(img_rs, (x_bt, y_bt), (x_bt + int(1.5 * s), y_bt + s), (0, 0, 0), 5)
+            img_rs = cv2.putText(img_rs, button_name, (x_bt + int(s / 6), y_bt + int(s / 2)),
                                  cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
         cv2.imshow(self.window_name, img_rs.astype(np.uint8))
@@ -66,16 +70,6 @@ def annotate(annot):
     """
     Run an interface to annotate leaf ranks of a TrackedPlant object.
     Press "Esc" key to exit
-
-    Parameters
-    ----------
-    plant : openalea.maizetrack.trackedPlant.TrackedPlant
-    init : str
-        '' or 'all' or 'not done'
-
-    Returns
-    -------
-        plant with updated rank_annotation attribute
     """
 
     def _image(annot, task, angle):
@@ -185,19 +179,6 @@ def annotate(annot):
 
 
 def rgb_and_polylines(image, leaves_pl, leaves_info, metainfo):
-    """
-
-    Parameters
-    ----------
-    snapshot : vmsi with metainfo attribute, or TrackedPlant object
-    angle : int
-    selected
-    ranks
-
-    Returns
-    -------
-
-    """
 
     image_pl = image.copy()
 
@@ -226,7 +207,8 @@ def rgb_and_polylines(image, leaves_pl, leaves_info, metainfo):
                                3, (0, 0, 0), 4, cv2.LINE_AA)
 
     # write date
-    text = 'plantid {} / task {} ({})'.format(metainfo.pot, metainfo.task, metainfo.daydate)
-    cv2.putText(image_pl, text, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2.5, (0, 0, 0), 10, cv2.LINE_AA)
+    if metainfo is not None:
+        text = 'plantid {} / task {} ({})'.format(metainfo.pot, metainfo.task, metainfo.daydate)
+        cv2.putText(image_pl, text, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2.5, (0, 0, 0), 10, cv2.LINE_AA)
 
     return image_pl

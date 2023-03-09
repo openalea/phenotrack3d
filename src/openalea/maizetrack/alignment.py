@@ -1,10 +1,5 @@
 import numpy as np
 from copy import deepcopy
-from openalea.maizetrack.utils import quantile_point, polyline_until_z
-
-##########################################################################################################
-##### Functions for step 1 : mature leaf tracking ########################################################
-##########################################################################################################
 
 
 def needleman_wunsch(X, Y, gap, gap_extremity_factor=1.):
@@ -195,7 +190,7 @@ def insert_gaps(all_sequences, seq_indexes, alignment):
     return all_sequences2
 
 
-def multi_alignment(sequences, gap, gap_extremity_factor=1., n_previous=0, start=0):
+def multi_alignment(sequences, gap, gap_extremity_factor=1., start=0, align_range=None):
     """
 
     Multi sequence alignment algorithm to align n sequences, using a progressive method. At each step, a sequence (Y)
@@ -222,24 +217,21 @@ def multi_alignment(sequences, gap, gap_extremity_factor=1., n_previous=0, start
 
     """
 
+    assert(-1 <= start <= len(sequences) - 1)
+
     aligned_sequences = deepcopy(sequences)
 
     # init
-    # (k0 -> 0) then (k0 -> n)
-    # TODO : only tested with n_previous = inf
+    # (k_start -> 0) then (k_start -> n)
     k_start = len(aligned_sequences) - 1 if start == -1 else start
     alignment_order = np.array(list(range(0, k_start + 1)[::-1]) + list(range(k_start + 1, len(aligned_sequences))))
     for k in range(1, len(aligned_sequences)):
         xi = alignment_order[:k]  # ref
         yi = alignment_order[k]
 
-    # start = int(-direction + 0.5)
-    # for k in range(start, len(aligned_sequences) + (start - 1)):
-    #     xi = direction * np.arange(start, k + 1)  # ref
-    #     yi = direction * (k + 1)
-
         # select the 2 profiles to align
-        X = np.array([aligned_sequences[i] for i in xi[-n_previous:]])
+        xi_in_range = xi if align_range is None else [val for val in xi if abs(val - k) <= align_range]
+        X = np.array([aligned_sequences[i] for i in xi_in_range])
         Y = np.array([aligned_sequences[yi]])
 
         # alignment
@@ -250,8 +242,6 @@ def multi_alignment(sequences, gap, gap_extremity_factor=1., n_previous=0, start
         aligned_sequences = insert_gaps(aligned_sequences, [yi], ry)
 
     # convert list of aligned sequences (all having the same length) in a matrix of vector indexes (-1 = gap)
-    # TODO : this matrix could be progressively constructed, in parallel to the alignment process. It would be easier
-    # TODO : to allow permutations for example..
     s = np.array(aligned_sequences).shape
     alignment_matrix = np.full((s[0], s[1]), -1)
     for i, aligned_seq in enumerate(aligned_sequences):
@@ -259,72 +249,3 @@ def multi_alignment(sequences, gap, gap_extremity_factor=1., n_previous=0, start
         alignment_matrix[i][no_gap] = np.arange(sum(no_gap))
 
     return alignment_matrix
-
-
-def detect_abnormal_ranks(alignment_matrix):
-    """
-    Algo specific to plant alignment.
-    Detect abnormal columns in 'alignment_matrix' object resulting from multi alignment based on the following criteria:
-    - A column is abnormal if it contains 2 times less aligned vectors in average (value != -1 in 'alignment_matrix')
-    than the surrounding columns.
-    - first and last columns can't be abnormal
-
-    Parameters
-    ----------
-    alignment_matrix : 2D array
-        result of multi_alignment() function
-
-    Returns
-    -------
-
-    """
-
-    alignment_matrix = np.array(alignment_matrix)
-    counts = [len([k for k in alignment_matrix[:, i] if k != -1]) for i in range(alignment_matrix.shape[1])]
-    abnormal_ranks = []
-    for i in range(len(counts)):
-        if 0 < i < len(counts) - 1 and counts[i] < 0.5 * np.mean([counts[i - 1], counts[i + 1]]):
-            abnormal_ranks.append(i)
-
-    return abnormal_ranks
-
-
-#######################################################################
-# Functions for step 2 : growing leaf tracking
-#######################################################################
-
-def polylines_distance(pl1, pl2, n=20):
-    """ compute the distance between two polylines """
-
-    dist = 0
-    for q in np.linspace(0, 1, n):
-        pos1 = quantile_point(pl1, q)
-        pos2 = quantile_point(pl2, q)
-        dist += np.sqrt(np.sum((pos1 - pos2) ** 2))
-
-    return dist
-
-
-def phm_leaves_distance(leaf_ref, leaf_candidate):
-    """ takes two leaf objects, deduct two polylines which start from a same point, compute the distance between
-     these two polylines """
-
-    # creating two polylines starting from the same base
-    leaf1, leaf2 = leaf_ref, leaf_candidate
-    pl1 = leaf1.real_pl
-    pl2 = leaf2.real_pl
-    zbase1, zbase2 = pl1[0][2], pl2[0][2]
-    if zbase1 < zbase2:
-        pl2 = polyline_until_z(leaf2.highest_pl, zbase1)
-    else:
-        pl1 = polyline_until_z(leaf1.highest_pl, zbase2)
-
-    # normalize
-    len1 = np.sum([np.linalg.norm(np.array(pl1[k]) - np.array(pl1[k + 1])) for k in range(len(pl1) - 1)])
-    pl1 = pl1 / np.max((len1, 0.0001))
-    pl2 = pl2 / np.max((len1, 0.0001))
-
-    # computing distance
-    d = polylines_distance(pl1, pl2)
-
-    return d
