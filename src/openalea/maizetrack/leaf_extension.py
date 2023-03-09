@@ -11,7 +11,7 @@ extension values found for this phm_leaf, or 1 if no extension value was found.
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from openalea.maizetrack.polyline import polyline_length
+from openalea.maizetrack.polyline_utils import polyline_length
 from skimage.morphology import skeletonize
 from skan import skeleton_to_csgraph, Skeleton, summarize
 from scipy.spatial.distance import directed_hausdorff

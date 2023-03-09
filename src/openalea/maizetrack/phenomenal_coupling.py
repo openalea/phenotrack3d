@@ -2,7 +2,7 @@ import warnings
 import numpy as np
 
 from openalea.maizetrack.median_stem import normal_stem_shape
-from openalea.maizetrack.polyline import polyline_simplification
+from openalea.maizetrack.polyline_utils import polyline_simplification
 
 
 # def phm_seg_features_check(phm_seg):

@@ -1,5 +1,5 @@
 import numpy as np
-from openalea.maizetrack.polyline import polyline_quantile_coordinate, polyline_length
+from openalea.maizetrack.polyline_utils import polyline_quantile_coordinate, polyline_length
 
 
 def detect_abnormal_ranks(alignment_matrix):
