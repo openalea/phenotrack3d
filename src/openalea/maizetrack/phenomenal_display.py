@@ -160,9 +160,9 @@ def plot_vmsi(vmsi_list, only_mature=False):
         li = 'all'
         coli = 'same'
         shapes += vmsi_polylines_to_pgl(vmsi, li, coli, only_mature)
-    print(len(shapes), ' shapes to plot')
     scene = pgl.Scene(shapes)
     pgl.Viewer.display(scene)
+    return scene
 
 
 def plot_vmsi_voxel(vmsi, ranks=None):
@@ -346,3 +346,5 @@ def plot_snapshot(snapshot, colored=True, ranks=None, stem=True):
 
     scene = pgl.Scene(shapes)
     pgl.Viewer.display(scene)
+
+    return scene

@@ -12,8 +12,8 @@ from PIL import Image
 
 #local copy of phenoarch_cache/ZA17
 cache_dir = 'local_cache/cache_ZA17/'
-#folder =  cache_dir + 'segmentation_voxel4_tol1_notop_vis4_minpix100_stem_smooth_tracking'
-folder = cache_dir + 'segmentation_voxel4_tol1_notop_vis4_minpix100_no_stem_smooth_no_tracking'
+folder =  cache_dir + 'segmentation_voxel4_tol1_notop_vis4_minpix100_stem_smooth_tracking'
+#folder = cache_dir + 'segmentation_voxel4_tol1_notop_vis4_minpix100_no_stem_smooth_no_tracking'
 #folder = cache_dir + '1429_nosmooth'
 
 plantid = 1429
@@ -131,7 +131,7 @@ imgs_gif = imgs_phm.copy()
 #imgs_gif = [img[200:-200, 250:-250, :] for img in imgs_gif]
 imgs_gif = [Image.fromarray(np.uint8(img)) for img in imgs_gif]
 fps = 1
-imgs_gif[0].save('gif/animation_id{}_{}fps.gif'.format(plantid, fps),
+imgs_gif[0].save('gif/animation_id{}_{}fps_2022.gif'.format(plantid, fps),
               save_all=True,
               append_images=imgs_gif[1:],
               optimize=True,
