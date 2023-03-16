@@ -1,3 +1,5 @@
+""" Multiple sequence alignment """
+
 import numpy as np
 from copy import deepcopy
 
@@ -6,7 +8,7 @@ def needleman_wunsch(X, Y, gap, gap_extremity_factor=1.):
     """
     Performs pairwise alignment of profiles X and Y with Needleman-Wunsch algorithm.
     A profile is defined as an array of one or more sequences of the same length.
-    Each sequence includes one or several vectors of the same length.
+    Each sequence includes one or several vectors of the same length, and might contain gaps (vectors filled with NaN)
     Source code : https://gist.github.com/slowkow/06c6dba9180d013dfd82bec217d22eb5
     The source code was modified to correct a few errors, and adapted to fit all requirements (extremity gap,
     customized scoring function, etc.)
@@ -24,6 +26,7 @@ def needleman_wunsch(X, Y, gap, gap_extremity_factor=1.):
 
     Returns
     -------
+    (list, list)
     """
 
     if X.size == 0 and Y.size == 0:
@@ -102,19 +105,16 @@ def needleman_wunsch(X, Y, gap, gap_extremity_factor=1.):
 
 def scoring_function(vec1, vec2):
     """
-
     Compute a dissimilarity score between two vectors of same length, which is equal to their euclidian distance.
 
     Parameters
     ----------
     vec1 : 1D array
     vec2 : 1D array, of same length than vec1
-    gap : float
 
     Returns
     -------
     float
-
     """
 
     return np.linalg.norm(vec1 - vec2)
@@ -158,20 +158,18 @@ def alignment_score(x, y, gap_extremity):
 
 def insert_gaps(all_sequences, seq_indexes, alignment):
     """
-
     Add gaps in sequences of 'all_sequences' whose indexes is in 'seq_indexes'. A gap is defined as a NAN array element
     in a given sequence. Gaps positions are given by 'alignment'.
 
     Parameters
     ----------
-    all_sequences : list of 2D arrays
-    seq_indexes : list of int
-    alignment : list of int
+    all_sequences : list(2D array)
+    seq_indexes : list(int)
+    alignment : list(int)
         result from needleman_wunsch()
 
     Returns
     -------
-
     """
 
     all_sequences2 = deepcopy(all_sequences)
@@ -192,8 +190,7 @@ def insert_gaps(all_sequences, seq_indexes, alignment):
 
 def multi_alignment(sequences, gap, gap_extremity_factor=1., start=0, align_range=None):
     """
-
-    Multi sequence alignment algorithm to align n sequences, using a progressive method. At each step, a sequence (Y)
+    Multiple sequence alignment algorithm to align n sequences, using a progressive method. At each step, a sequence (Y)
     is aligned with a matrix (X) corresponding to a profile (i.e. the alignement of k sequences) resulting in the
     alignment of k + 1 sequences. Each pairwise alignment of X vs Y is based on needleman-wunsch algorithm.
 
@@ -206,15 +203,15 @@ def multi_alignment(sequences, gap, gap_extremity_factor=1., start=0, align_rang
     gap_extremity_factor : float
         parameter to modify the gap penalty on sequence extremity positions, relatively to gap value.
         For example, if gap = 5 and gap_extremity_factor = 0.6, Then the penalty for terminal gaps equals 3.
-    direction : int
-        # TODO update
-        if direction == 1 : align from t=1 to t=tmax. If direction == -1 : align from t=tmax to t=1.
-    n_previous : int
-
+    start : int
+        sequences are progressively added to the global alignment from sequences[start] to sequences[0], then from
+        sequences[start + 1] to sequences[-1]
+    align_range : int
+        When adding a new sequence to the global alignment, only the already aligned sequences with a distance inferior
+        or equal to this parameter in the sequences order are used for the alignment.
 
     Returns
     -------
-
     """
 
     assert(-1 <= start <= len(sequences) - 1)

@@ -1,10 +1,20 @@
+"""
+Functions used in the following post processing steps after the alignment of sequences of ligulated leaves :
+
+- Remove abnormal columns in the alignment matrix (i.e. ranks corresponding to artefacts, not to real leaves).
+(detect_abnormal_ranks)
+
+- Backwards tracking of each leaf in its growth phase until its emergence.
+(leaf_polylines_distance)
+"""
+
 import numpy as np
 from openalea.maizetrack.polyline_utils import polyline_quantile_coordinate, polyline_length
 
 
 def detect_abnormal_ranks(alignment_matrix):
     """
-    Algo specific to plant alignment.
+    Specific to plant alignment.
     Detect abnormal columns in 'alignment_matrix' object resulting from multi alignment based on the following criteria:
     - A column is abnormal if it contains 2 times less aligned vectors in average (value != -1 in 'alignment_matrix')
     than the surrounding columns.
@@ -31,6 +41,18 @@ def detect_abnormal_ranks(alignment_matrix):
 
 
 def leaf_polylines_distance(polyline_ref, polyline_candidate, n=20):
+    """
+    Computes the distance between two leaf polylines.
+
+    Parameters
+    ----------
+    polyline_ref : array
+    polyline_candidate : array
+    n : int
+
+    Returns
+    -------
+    """
 
     # computing distance
     dist = 0

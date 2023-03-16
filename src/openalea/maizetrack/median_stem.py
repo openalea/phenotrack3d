@@ -31,7 +31,7 @@ def get_median_polyline(polylines, n_stem_min=0, dz=2):
 
     Parameters
     ----------
-    polylines : list of 2D arrays
+    polylines : list
         list of 3D polylines
     n_stem_min : int
         This parameters determines the maximum height of the median polyline : median polyline is only computed at
@@ -67,13 +67,15 @@ def normal_stem_shape(polylines, dist_threshold=100):
 
     Parameters
     ----------
-    polylines : list of 3D polylines
+    polylines : list
+        list of 3D polylines
     dist_threshold : float
+        a polyline whose hausdorff distance with the median polyline is above this threshold is considered as abnormal
 
     Returns
     -------
     list of bool
-        True (= abnormal) or False (= normal) for each polyline
+        True (= normal) or False (= abnormal) for each polyline
     """
 
     median_stem = get_median_polyline(polylines=polylines)

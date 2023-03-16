@@ -1,21 +1,12 @@
+"""
+Convert segmentation objets from Phenomenal to the input format required for TrackedPlant.
+"""
+
 import warnings
 import numpy as np
 
 from openalea.maizetrack.median_stem import normal_stem_shape
 from openalea.maizetrack.polyline_utils import polyline_simplification
-
-
-# def phm_seg_features_check(phm_seg):
-#     """ Check if there are some missing data in phm_seg. usefull for growing leaves """
-#
-#     valid = True
-#
-#     for var in ['pm_position_base', 'pm_z_tip', 'pm_azimuth_angle', 'pm_length']:
-#         for leaf in phm_seg.get_leafs():
-#             if var not in leaf.info:
-#                 valid = False
-#
-#     return valid
 
 
 def phm_leaf_features(phm_leaf):
@@ -41,11 +32,6 @@ def phm_leaf_features(phm_leaf):
     elif phm_leaf.info['pm_label'] == 'growing_leaf':
 
         features['mature'] = False
-        # # sometimes, there are missing data due to a bug in phenomenal: needs to be checked.
-        # if all([var in phm_leaf.info for var in ['pm_azimuth_angle', 'pm_length_with_speudo_stem', 'pm_z_base']]):
-        #     features['azimuth'] = phm_leaf.info['pm_azimuth_angle']
-        #     features['length'] = phm_leaf.info['pm_length_with_speudo_stem']
-        #     features['height'] = phm_leaf.info['pm_z_base']
 
     return features
 
@@ -56,12 +42,7 @@ def phm_to_phenotrack_input(phm_seg_list, timestamps):
     stem_polylines = [np.array(phm_seg.get_stem().get_highest_polyline().polyline) for phm_seg in phm_seg_list]
     checks_stem = np.array(normal_stem_shape(stem_polylines))
 
-    # # check if the segmented leaves have missing information at each time step
-    # checks_leaves = np.array([phm_seg_features_check(phm_seg) for phm_seg in phm_seg_list])
-    # # combine both checks
-    # checks = checks_stem * checks_leaves
-
-    # ===== create the phenotrack input ===============================================================================
+    # _____ create the TrackedPlant input ____________________________________________________________________________
 
     res = []
 

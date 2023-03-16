@@ -25,6 +25,25 @@ index = cache.snapshot_index()
 
 plants = list(plant_data(exp)['plant'])
 
+# ===== leaf extension ============================================
+
+plant = '1658/ZM1584/CML108/lepse/EXPOSE/WW/Rep_5/28_38/ARCH2022-01-10'
+task = 5172
+meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
+m = next(m for m in meta_snapshots if m.task == task)
+
+for angle in [k * 30 for k in range(12)]:
+    bin_path = next(p for p, v, a in zip(m.binary_path, m.view_type, m.camera_angle) if v == 'side' and a == angle)
+    bin = cache.binary_image_client.imread(bin_path)
+    cv2.imwrite('maizetrack/examples/data/leaf_extension/{}.png'.format(angle), bin)
+
+# for maizetrack
+seg = cache.load_segmentation(m)
+seg.write_to_json_gz('maizetrack/examples/data/leaf_extension/segmentation.gz')
+
+
+# ===============================================================
+
 # which plant as the most time points :
 dir = f'V:/phenoarch_cache/cache_{exp}/phenomenal/segmentation_voxel4_tol1_notop_pot_vis4_minpix100_force-stem'
 files = [f for d in os.listdir(dir) for f in os.listdir(dir + '/' + d)]
@@ -89,6 +108,13 @@ for snapshot in trackedplant.snapshots:
             polylines.append(leaf.polyline)
             ranks.append(r)
 plot_polylines(polylines, ranks)
+
+
+
+
+
+
+
 
 
 
