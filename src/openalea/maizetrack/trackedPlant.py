@@ -1,7 +1,6 @@
 """
-Classes for maize leaf tracking and rank attribution, in a time-series of Phenomenal 3D segmentation objects.
-//!\\ In the tracking algorithm, ranks start at 0. But in the final output (stored in the 'pm_leaf_number_tracking'
-attribute of each leaf), ranks start at 1. (see get_ranks() method)
+Time-lapse tracking of leaves in a time-series of 3D maize segmentations.
+//!\\ In the tracking algorithm, ranks start at 0. But in the final output, ranks start at 1. (see get_ranks() method)
 """
 
 import numpy as np
@@ -12,6 +11,22 @@ from openalea.maizetrack.alignment_postprocessing import detect_abnormal_ranks, 
 
 
 def check_time_intervals(times, discontinuity=5.):
+    """
+    If a gap between two successive time steps is too high compared to the median interval, all time-steps after the
+    gap are invalidated
+
+    Parameters
+    ----------
+    times : list(float)
+    discontinuity : float
+
+    Returns
+    -------
+    list(bool)
+    """
+
+    assert(list(times) == sorted(times))
+
     dt_median = np.median(np.diff(times))
     valid = np.array([True] * len(times))
     for i in range(1, len(times)):
@@ -21,19 +36,26 @@ def check_time_intervals(times, discontinuity=5.):
 
 
 class TrackedLeaf:
-    """
-    Describe a leaf organ, with attributes specific to leaf tracking algorithm.
-    """
+    """ Describe a leaf organ, with attributes specific to leaf tracking algorithm. """
 
     def __init__(self, polyline, features):
+        """
+        Parameters
+        ----------
+        polyline : (n, 3) numpy array
+        features : dict
+            {'mature': bool, 'azimuth': float, 'height': float, 'length': float}
+        """
 
-        self.polyline = polyline
+        # for mature leaf tracking
         self.features = features
-
         self.vec = np.array([])
 
+        # for growing leaf tracking
+        self.polyline = polyline
+
     def compute_features_vector(self, w_h, w_l):
-        """ for sequence alignment of mature leaves """
+        """ for the sequence alignment of mature leaves """
 
         if not self.features['mature']:
             warnings.warn('This method is supposed to be used for mature leaves')
@@ -47,12 +69,16 @@ class TrackedLeaf:
 
 
 class TrackedSnapshot:
-    """
-    Describe the plant segmentation from Phenomenal at a given time point, and associate it to its corresponding
-    metainfos. Describe the order of leaves, which is modified during leaf tracking.
-    """
+    """ Describe the plant segmentation at a given time point, particularly the order of leaves, which is modified
+    during leaf tracking. """
 
     def __init__(self, leaves, check):
+        """
+        Parameters
+        ----------
+        leaves : list(TrackedLeaf)
+        check : list(bool)
+        """
 
         self.leaves = leaves
 
@@ -65,9 +91,9 @@ class TrackedSnapshot:
 
     def leaf_ranks(self):
         """
-        list of ranks of leaves contained in self.leaves
+        returns the ranks of leaves contained in self.leaves
 
-        small example :
+        example :
         self.leaves = [leaf0, leaf1, leaf2, leaf3]
         self.sequence = [-1, -1, 0, 1, -1, 2, 3, -1]
         ===> self.leaf_ranks() returns [3, 4, 6, 7]
@@ -80,16 +106,16 @@ class TrackedSnapshot:
 
 
 class TrackedPlant:
-    """
-    Class describing a time-series of TrackedSnapshot. It is used to track maize leaves over time and find their ranks.
-    """
+    """ Main class for leaf tracking """
 
     def __init__(self, snapshots):
+        """
+        Parameters
+        ----------
+        snapshots : list(TrackedSnapshot)
+        """
 
-        # list of TrackedSnapshot objects
         self.snapshots = snapshots
-
-    # ===== method to load a TrackedPlant object ====================================================================
 
     @staticmethod
     def load(segmentation_time_series):
@@ -99,11 +125,13 @@ class TrackedPlant:
         segmentation_time_series : list
             list of dict {'time': float,
                           'polylines_sequence': list of polylines,
-                          'features_sequence': {'mature': bool, 'azimuth': float, 'height': float, 'length': float}
+                          'features_sequence': list of {'mature': bool, 'azimuth': float,
+                                                        'height': float, 'length': float}
                           }
 
         Returns
         -------
+        TrackedPlant
         """
 
         times = [seg['time'] for seg in segmentation_time_series]
@@ -138,7 +166,6 @@ class TrackedPlant:
 
         Returns
         -------
-
         """
 
         ref_skeleton = dict()
@@ -150,6 +177,7 @@ class TrackedPlant:
             leaves = [leaf for leaf in leaves if leaf.features['mature']]
 
             # remove old leaves (that could have a different shape)
+            # TODO use value of times instead
             leaves = leaves[:nmax]
 
             if len(leaves) > 0:
@@ -160,12 +188,12 @@ class TrackedPlant:
 
         return ref_skeleton
 
-    def mature_leaf_tracking(self, gap=12.35, gap_extremity_factor=0.2, start=0, w_h=0.03, w_l=0.004, align_range=None,
+    def mature_leaf_tracking(self, gap=12., gap_extremity_factor=0.2, start=0, w_h=0.03, w_l=0.004, align_range=None,
                              rank_attribution=True):
         """
         alignment and rank attributions in a time-series of sequences of leaves.
         Step 1 : use a multiple sequence alignment algorithm to align the sequences.
-        Step 2 : Detect and remove abnormal group of leaves ; final rank attribution.
+        Step 2 (post-processing) : Detect and remove abnormal group of leaves ; final rank attribution.
 
         Parameters
         ----------
@@ -174,12 +202,12 @@ class TrackedPlant:
         gap_extremity_factor : float
             parameter allowing to change the value of the gap penalty for terminal gaps (terminal gap penalty = gap *
             gap_extremity_factor)
-        direction : int
-            parameter determining if sequences are progressively aligned starting with first (direction == 1) or last
-            (direction == -1) sequences from the time-series.
-        n_previous : int
-            Each time a new sequence is added to the global alignment, it is compared with the n_previous previous
-            sequences added to the global alignment.
+        start : int
+            sequences are progressively added to the global alignment from sequences[start] to sequences[0], then from
+            sequences[start + 1] to sequences[-1]
+        align_range : int
+            When adding a new sequence to the global alignment, only the already aligned sequences with a distance
+            inferior or equal to this parameter in the sequences order are used for the alignment.
         w_h : float
             weight associated to insertion height feature in a leaf feature vector
         w_l : float
@@ -189,10 +217,9 @@ class TrackedPlant:
 
         Returns
         -------
-
         """
 
-        # ===== Step 1 - multi sequence alignment =====================================================================
+        # _____ Step 1 - multiple sequence alignment _________________________________________________________________
 
         # initialize sequence attribute of each snapshot, with only mature leaves:
         for snapshot in self.snapshots:
@@ -219,7 +246,7 @@ class TrackedPlant:
         for t, aligned_sequence in enumerate(alignment_matrix):
             self.snapshots[t].sequence = [-1 if i == -1 else self.snapshots[t].sequence[i] for i in aligned_sequence]
 
-        # ===== Step 2 - From relative leaf ranks to absolute leaf ranks (abnormal ranks removing) ====================
+        # _____ Step 2 - From relative leaf ranks to absolute leaf ranks (abnormal ranks removing) ___________________
 
         if rank_attribution:
 
@@ -252,7 +279,7 @@ class TrackedPlant:
             for t in range(t_mature)[::-1]:
                 snapshot = valid_snapshots[t]
                 g_growing = [g for g, leaf in enumerate(snapshot.leaves)
-                             if (leaf.features['mature'] == False)  # avoids non-tracked mature
+                             if (not leaf.features['mature'])  # avoids non-tracked mature
                              and (g not in snapshot.sequence)  # avoids already-tracked growing
                              ]
                 if len(g_growing) > 0:
@@ -260,9 +287,6 @@ class TrackedPlant:
                                                      polyline_candidate=snapshot.leaves[g].polyline)
                              for g in g_growing]
                     valid_snapshots[t].sequence[r] = g_growing[np.argmin(dists)]
-
-    # def polylines_and_ranks(self, mature=True, growing=True):
-    #     pass
 
     def output(self):
 
