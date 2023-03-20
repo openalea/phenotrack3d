@@ -41,6 +41,23 @@ for angle in [k * 30 for k in range(12)]:
 seg = cache.load_segmentation(m)
 seg.write_to_json_gz('maizetrack/examples/data/leaf_extension/segmentation.gz')
 
+# for test
+
+plant = '1658/ZM1584/CML108/lepse/EXPOSE/WW/Rep_5/28_38/ARCH2022-01-10'
+task = 5172
+meta_snapshots = index.get_snapshots(index.filter(plant=plant, nview=13), meta=True)
+m = meta_snapshots[11]
+assert m.shooting_frame == 'ARCH2022-01-10_ImagingStation02_4961'
+
+for angle in [k * 30 for k in range(12)]:
+    bin_path = next(p for p, v, a in zip(m.binary_path, m.view_type, m.camera_angle) if v == 'side' and a == angle)
+    bin = cache.binary_image_client.imread(bin_path)
+    bin = bin[1400:2200, 500:1500]
+    cv2.imwrite('maizetrack/test/data/leaf_extension/{}.png'.format(angle), bin)
+
+# for maizetrack
+seg = cache.load_segmentation(m)
+seg.write_to_json_gz('maizetrack/test/data/segmentation.gz')
 
 # ===============================================================
 

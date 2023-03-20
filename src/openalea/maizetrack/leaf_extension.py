@@ -35,12 +35,16 @@ def skeleton_branches(image, n_kernel=15, min_length=30):
         list of 2D polylines with an endpoint
     """
 
+    binary = image.copy()
+    if round(np.max(binary)) == 255:
+        binary = binary / 255.
+
     # dilate image
     kernel = np.ones((n_kernel, n_kernel))
-    image_dilated = cv2.dilate(image, kernel, iterations=1)
+    binary_dilated = cv2.dilate(binary, kernel, iterations=1)
 
     # 2d skeleton image
-    skeleton = skeletonize(image_dilated)
+    skeleton = skeletonize(binary_dilated)
 
     # skeleton analysis : get branches
     skan_skeleton = Skeleton(skeleton)
@@ -80,7 +84,7 @@ def compute_extension(polylines_phm, polylines_sk, seg_length=50., dist_threshol
         seg_length: float
             length (px) of the end segment of a phenomenal phm_leaf polyline that is compared with skeleton.
         dist_threshold: float
-            minimum hausdorff distance (px) between polylines of both types to associate them.
+             hausdorff distance threshold (px) between polylines of both types to associate them.
 
     Returns:
 
@@ -179,15 +183,11 @@ def leaf_extension(phm_seg, binaries, projections):
                      for k in range(1, 1 + phm_seg.get_number_of_leaf())]
     angles = binaries.keys()
 
-    binaries2 = binaries.copy()
-    for angle in angles:
-        binaries2[angle] = binaries2[angle] / 255.
-
     res = dict()
     for angle in angles:
 
         # 2D skeleton polylines
-        polylines_sk = skeleton_branches(binaries2[angle])
+        polylines_sk = skeleton_branches(binaries[angle])
 
         # phenomenal polylines projected in 2D
         polylines_phm_2d = [projections[angle](pl) for pl in polylines_phm]
