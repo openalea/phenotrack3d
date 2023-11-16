@@ -50,6 +50,7 @@ class ImageViewer(QWidget):
             self.imageWidget.resize(self.imageWidget.sizeHint())
 
 
+
 class MyScrollArea(QScrollArea):
     def __init__(self, image_widget):
         # initialize widget
@@ -88,6 +89,7 @@ class MyScrollArea(QScrollArea):
         if event.button() == Qt.MouseButton.MiddleButton:
             self.setCursor(Qt.OpenHandCursor)
 
+
     def mouseMoveEvent(self, event):
         delta = event.localPos() - self.mousepos
         # panning area
@@ -97,6 +99,22 @@ class MyScrollArea(QScrollArea):
 
             self.horizontalScrollBar().setValue(int(h - delta.x()))
             self.verticalScrollBar().setValue(int(v - delta.y()))
+
+        if event.buttons() == Qt.MouseButton.LeftButton:
+            print("left click on image")
+            par = self.parent().parent()
+            pos = event.localPos()
+            y, x = pos.y(), pos.x()
+
+            dists = []
+            polylines = [pl[par.angles[par.i_angle]] for pl in par.annot[par.tasks[par.i_task]]['leaves_pl']]
+            for pl in polylines:
+                d = min([np.linalg.norm(np.array([x, y]) - xy) for xy in pl])
+                dists.append(d)
+            i_selected = np.argmin(dists)
+            selected_leaf = par.annot[par.tasks[par.i_task]]['leaves_info'][i_selected]
+            selected_leaf['selected'] = True
+            par.changeImage(_image(par.annot, par.tasks[par.i_task], par.angles[par.i_angle]), False)
 
         self.mousepos = event.localPos()
 
@@ -147,6 +165,7 @@ class DockAnnotation(QDockWidget):
         self.cameraButton.clicked.connect(lambda: self.switch_cam())
         self.forwardButton.clicked.connect(lambda: self.changeTime(forward=True))
         self.backButton.clicked.connect(lambda: self.changeTime(forward=False))
+        self.okButton.clicked.connect(lambda: self.validate())
 
     def addWidgets(self):
         self.paramsLayout.addWidget(self.backButton, 0, 1, 1, 1)
@@ -180,6 +199,12 @@ class DockAnnotation(QDockWidget):
         if change:
             parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task], parent.angles[parent.i_angle]), False)
 
+    def validate(self):
+        parent = self.parent()
+        selected_leaf = parent.annot[parent.tasks[parent.i_task]]['leaves_info'][parent.i_selected]
+        selected_leaf['selected'] = False
+        parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task], parent.angles[parent.i_angle]), False)
+
 
 class Window(QMainWindow):
     def __init__(self):
@@ -190,6 +215,7 @@ class Window(QMainWindow):
         self.i_task = 0
         self.i_angle = 0
         self.img_dim = 0
+        self.i_selected = -1
         self.dockWidget = DockAnnotation()
         self.setWindowTitle('Annotation Tool')
         self.imgViewer = ImageViewer()
