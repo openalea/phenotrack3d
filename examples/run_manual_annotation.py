@@ -13,7 +13,7 @@ from datadir import datadir
 
 if __name__ == '__main__':
 
-    timestamps = [int(t) for t in os.listdir(datadir + '/images')]
+    timestamps = [int(t) for t in sorted(os.listdir(datadir + '/images'))]
 
     phm_segs = []
     for timestamp in timestamps:

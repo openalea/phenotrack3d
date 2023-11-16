@@ -1,5 +1,5 @@
 """
-A cv2 draft tool to annotate leaf ranks on an time-series of 3D maize plant segmentations.
+A cv2 draft tool to annotate leaf ranks on a time-series of 3D maize plant segmentations.
 
 It can be used to build a ground-truth dataset to evaluate leaf tracking performances, or as manual tool to easily
 refine imperfect tracking outputs.
