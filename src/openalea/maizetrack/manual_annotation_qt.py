@@ -1,12 +1,23 @@
+import os
+
 import cv2
 import numpy as np
 from PySide6 import QtWidgets
-from PySide6.QtCore import Qt, QPoint, QSize
+from PySide6.QtCore import Qt, QPoint, QSize, QThread
 from PySide6.QtGui import QPixmap, QScreen, QAction, QIcon, QImage
-from PySide6.QtWidgets import QPushButton, QVBoxLayout, QLabel, QScrollArea, QMainWindow, QDockWidget, QStatusBar, \
-    QWidget, QApplication, QMenuBar, QMenu, QGroupBox, QGridLayout, QFileDialog, QLineEdit
+from PySide6.QtWidgets import QPushButton, QVBoxLayout, QLabel, QScrollArea, \
+    QMainWindow, QDockWidget, QStatusBar, \
+    QWidget, QApplication, QMenuBar, QMenu, QGroupBox, QGridLayout, QFileDialog, \
+    QLineEdit, QMessageBox
+from openalea.phenomenal.calibration import Calibration
+
+from openalea.maizetrack.phenomenal_coupling import phm_to_phenotrack_input
+from openalea.maizetrack.trackedPlant import TrackedPlant
 
 from openalea.maizetrack.display import PALETTE
+import openalea.phenomenal.object.voxelSegmentation as phm_seg
+import threading
+import asyncio
 
 
 def _image(annot, task, angle):
@@ -21,6 +32,7 @@ class ImageViewer(QWidget):
     def __init__(self, img=None):
         # initialize widget
         super().__init__()
+        self.par = None
         self.imageWidget = QLabel()
         self.imageWidget.installEventFilter(self)
         self.imageWidget.setAlignment(Qt.AlignCenter)
@@ -38,17 +50,50 @@ class ImageViewer(QWidget):
 
     def changeImagePath(self, path):
         image = cv2.imread(path)
-        qImg = QImage(image.data, image.shape[1], image.shape[0], image.shape[1] * 3, QImage.Format.Format_RGB888)
+        qImg = QImage(image.data, image.shape[1], image.shape[0],
+                      image.shape[1] * 3, QImage.Format.Format_RGB888)
         self.pixmap = QPixmap.fromImage(qImg)
         self.imageWidget.setPixmap(self.pixmap)
 
     def changeImage(self, image, resize=True):
-        qImg = QImage(image.data, image.shape[1], image.shape[0], image.shape[1] * 3, QImage.Format.Format_RGB888)
+        qImg = QImage(image.data, image.shape[1], image.shape[0],
+                      image.shape[1] * 3, QImage.Format.Format_RGB888)
         self.pixmap = QPixmap.fromImage(qImg)
         self.imageWidget.setPixmap(self.pixmap)
         if resize:
             self.imageWidget.resize(self.imageWidget.sizeHint())
 
+    def mousePressEvent(self, event):
+        if self.par is None:
+            self.par = self.parent()
+        if event.button() == Qt.MouseButton.LeftButton and not self.par.selected:
+            print("left click on image")
+            pos = event.localPos()
+            print(pos)
+            y, x = int(pos.y()), int(pos.x())
+            y, x = (np.array([y, x]) / 1000 * np.array(
+                self.par.img_dim)).astype(int)
+
+            print(y, x)
+            dists = []
+            polylines = [pl[self.par.angles[self.par.i_angle]] for pl in
+                         self.par.annot[self.par.tasks[self.par.i_task]][
+                             'leaves_pl']]
+            for pl in polylines:
+                d = min(
+                    [np.linalg.norm(np.array([x, y]) - xy) for xy in pl])
+                dists.append(d)
+            i_selected = np.argmin(dists)
+            selected_leaf = \
+                self.par.annot[self.par.tasks[self.par.i_task]]['leaves_info'][
+                    i_selected]
+
+            if not selected_leaf['selected']:
+                selected_leaf['selected'] = True
+                self.par.selected = True
+                self.par.changeImage(
+                    _image(self.par.annot, self.par.tasks[self.par.i_task],
+                           self.par.angles[self.par.i_angle]), False)
 
 
 class MyScrollArea(QScrollArea):
@@ -62,6 +107,7 @@ class MyScrollArea(QScrollArea):
         self._zoom = 0
         self.mousepos = QPoint(0, 0)
         image_widget.setScaledContents(True)
+        self.par = None
 
     def wheelEvent(self, event) -> None:
         if event.angleDelta().y() < 0:
@@ -88,7 +134,8 @@ class MyScrollArea(QScrollArea):
         self.mousepos = event.localPos()
         if event.button() == Qt.MouseButton.MiddleButton:
             self.setCursor(Qt.OpenHandCursor)
-
+        if event.button() == Qt.MouseButton.LeftButton:
+            event.ignore()
 
     def mouseMoveEvent(self, event):
         delta = event.localPos() - self.mousepos
@@ -99,22 +146,8 @@ class MyScrollArea(QScrollArea):
 
             self.horizontalScrollBar().setValue(int(h - delta.x()))
             self.verticalScrollBar().setValue(int(v - delta.y()))
-
-        if event.buttons() == Qt.MouseButton.LeftButton:
-            print("left click on image")
-            par = self.parent().parent()
-            pos = event.localPos()
-            y, x = pos.y(), pos.x()
-
-            dists = []
-            polylines = [pl[par.angles[par.i_angle]] for pl in par.annot[par.tasks[par.i_task]]['leaves_pl']]
-            for pl in polylines:
-                d = min([np.linalg.norm(np.array([x, y]) - xy) for xy in pl])
-                dists.append(d)
-            i_selected = np.argmin(dists)
-            selected_leaf = par.annot[par.tasks[par.i_task]]['leaves_info'][i_selected]
-            selected_leaf['selected'] = True
-            par.changeImage(_image(par.annot, par.tasks[par.i_task], par.angles[par.i_angle]), False)
+        else:
+            event.ignore()
 
         self.mousepos = event.localPos()
 
@@ -130,7 +163,8 @@ class DockAnnotation(QDockWidget):
         self.content = QWidget()
         self.contentLayout = QVBoxLayout(self.content)
         self.content.setLayout(self.contentLayout)
-        self.setFeatures(QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
+        self.setFeatures(
+            QtWidgets.QDockWidget.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFloatable)
 
         # adding stuff in
         groupBox = QGroupBox("Validation", self)
@@ -163,9 +197,17 @@ class DockAnnotation(QDockWidget):
 
     def setupButtonSignals(self):
         self.cameraButton.clicked.connect(lambda: self.switch_cam())
-        self.forwardButton.clicked.connect(lambda: self.changeTime(forward=True))
+        self.forwardButton.clicked.connect(
+            lambda: self.changeTime(forward=True))
         self.backButton.clicked.connect(lambda: self.changeTime(forward=False))
         self.okButton.clicked.connect(lambda: self.validate())
+        self.plusOneButton.clicked.connect(
+            lambda: self.changeRank(amount=1, increment=True))
+        self.minusOneButton.clicked.connect(
+            lambda: self.changeRank(amount=1, increment=True))
+
+        self.rTen.clicked.connect(lambda: self.setRank(amount=10))
+        self.rZero.clicked.connect(lambda: self.setRank(amount=0))
 
     def addWidgets(self):
         self.paramsLayout.addWidget(self.backButton, 0, 1, 1, 1)
@@ -184,8 +226,10 @@ class DockAnnotation(QDockWidget):
 
     def switch_cam(self):
         parent = self.parent()
-        parent.i_angle = parent.i_angle + 1 if parent.i_angle < len(parent.angles) - 1 else 0
-        parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task], parent.angles[parent.i_angle]), False)
+        parent.i_angle = parent.i_angle + 1 if parent.i_angle < len(
+            parent.angles) - 1 else 0
+        parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task],
+                                  parent.angles[parent.i_angle]), False)
 
     def changeTime(self, forward=True):
         parent = self.parent()
@@ -197,13 +241,42 @@ class DockAnnotation(QDockWidget):
             change = True
             parent.i_task -= 1
         if change:
-            parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task], parent.angles[parent.i_angle]), False)
+            self.validate()
+            parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task],
+                                      parent.angles[parent.i_angle]), False)
 
     def validate(self):
+        print("validation")
         parent = self.parent()
-        selected_leaf = parent.annot[parent.tasks[parent.i_task]]['leaves_info'][parent.i_selected]
+        selected_leaf = \
+            parent.annot[parent.tasks[parent.i_task]]['leaves_info'][
+                parent.i_selected]
         selected_leaf['selected'] = False
-        parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task], parent.angles[parent.i_angle]), False)
+        parent.selected = False
+        parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task],
+                                  parent.angles[parent.i_angle]), False)
+
+    def changeRank(self, amount, increment):
+        parent = self.parent()
+        selected_leaf = \
+            parent.annot[parent.tasks[parent.i_task]]['leaves_info'][
+                parent.i_selected]
+        if increment:
+            selected_leaf['rank'] += amount
+        else:
+            selected_leaf['rank'] -= amount
+        parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task],
+                                  parent.angles[parent.i_angle]), False)
+
+    def setRank(self, amount):
+        parent = self.parent()
+        selected_leaf = \
+            parent.annot[parent.tasks[parent.i_task]]['leaves_info'][
+                parent.i_selected]
+
+        selected_leaf['rank'] = amount
+        parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task],
+                                  parent.angles[parent.i_angle]), False)
 
 
 class Window(QMainWindow):
@@ -216,6 +289,7 @@ class Window(QMainWindow):
         self.i_angle = 0
         self.img_dim = 0
         self.i_selected = -1
+        self.selected = False
         self.dockWidget = DockAnnotation()
         self.setWindowTitle('Annotation Tool')
         self.imgViewer = ImageViewer()
@@ -242,18 +316,21 @@ class Window(QMainWindow):
         helpAction = QAction("Help", self)
         loadImageAction = QAction("Load image", self)
         aboutAction = QAction(QIcon.fromTheme("help-about"), "About", self)
+        aboutQtAction = QAction(QIcon.fromTheme("help-about"), "About Qt", self)
         quitAction = QAction(QIcon.fromTheme("application-exit"), "Quit", self)
         quitAction.triggered.connect(self.quit)
         helpAction.triggered.connect(self.help)
         loadImageAction.triggered.connect(self.changeImageDialog)
+        aboutQtAction.triggered.connect(
+            lambda: QMessageBox.aboutQt(self, "About Qt"))
         menuFile = QMenu("File", self)
         menuHelp = QMenu("About", self)
         menuHelp.addAction(helpAction)
         menuHelp.addAction(aboutAction)
+        menuHelp.addAction(aboutQtAction)
         menuFile.addAction(loadImageAction)
         menuFile.addAction(quitAction)
 
-        self.menubar.addAction(menuFile.menuAction())
         self.menubar.addAction(menuFile.menuAction())
         self.menubar.addAction(menuHelp.menuAction())
         self.setMenuBar(self.menubar)
@@ -275,14 +352,58 @@ class Window(QMainWindow):
         if event.key() == Qt.Key.Key_Escape:
             self.quit()
 
-    def set_annotation_params(self, img_dimension, tasks, angles, i_task, i_angle):
+    def set_annotation_params(self, img_dimension, tasks, angles, i_task,
+                              i_angle):
         self.img_dim = img_dimension
         self.tasks = tasks
         self.angles = angles
         self.i_task = i_task
         self.i_angle = i_angle
 
-    def annotate(self, annot):
+    def startupThread(self, datadir):
+        timestamps = [int(t) for t in sorted(os.listdir(datadir + '/images'))]
+
+        phm_segs = []
+        for timestamp in timestamps:
+            phm_segs.append(phm_seg.VoxelSegmentation.read_from_json_gz(
+                datadir + f'/3d_time_series/{timestamp}.gz'))
+
+        calibration = Calibration.load(
+            datadir + f'/phm_calibration/calibration.json')
+
+        phenotrack_segs, _ = phm_to_phenotrack_input(phm_segs, timestamps)
+        trackedplant = TrackedPlant.load(
+            phenotrack_segs)  # useful here for polylines simplification
+
+        trackedplant.mature_leaf_tracking()
+        trackedplant.growing_leaf_tracking()
+
+        annot = {}
+        angles = [60, 150]
+        projections = {
+            a: calibration.get_projection(id_camera='side', rotation=a,
+                                          world_frame='pot') for a in angles}
+        for snapshot, timestamp in zip(trackedplant.snapshots, timestamps):
+
+            annot[timestamp] = {'metainfo': None, 'leaves_info': [],
+                                'leaves_pl': [], 'images': {}}
+
+            for angle in angles:
+                img = cv2.cvtColor(
+                    cv2.imread(datadir + f'/images/{timestamp}/{angle}.png'),
+                    cv2.COLOR_BGR2RGB)
+                annot[timestamp]['images'][angle] = img
+                ranks = snapshot.leaf_ranks()
+
+            for leaf, r_tracking in zip(snapshot.leaves, ranks):
+                mature = leaf.features['mature']
+
+                annot[timestamp]['leaves_pl'].append(
+                    {a: projections[a](leaf.polyline) for a in angles})
+                annot[timestamp]['leaves_info'].append(
+                    {'mature': mature, 'selected': False, 'rank': r_tracking,
+                     'tip': None})
+
         self.annot = annot
         tasks = list(annot.keys())
         angles = list(annot[tasks[0]]['images'].keys())
@@ -290,9 +411,14 @@ class Window(QMainWindow):
 
         img_dimension = annot[tasks[0]]['images'][angles[0]].shape[:2]
 
-        self.set_annotation_params(img_dimension, tasks, angles, i_task, i_angle)
+        self.set_annotation_params(img_dimension, tasks, angles, i_task,
+                                   i_angle)
         self.changeImage(_image(annot, tasks[i_task], angles[i_angle]))
         self.statusbar.showMessage("Done!")
+
+    def startup(self, datadir):
+        t = threading.Thread(target=self.startupThread, args=(datadir,))
+        t.start()
 
 
 def rgb_and_polylines(image, leaves_pl, leaves_info, metainfo):
@@ -307,10 +433,12 @@ def rgb_and_polylines(image, leaves_pl, leaves_info, metainfo):
         ds = 1 if not leaf['selected'] else 3
 
         image_pl = cv2.polylines(np.float32(image_pl),
-                                 [pl.astype(int).reshape((-1, 1, 2))], False, border_col, 10 * ds)
+                                 [pl.astype(int).reshape((-1, 1, 2))], False,
+                                 border_col, 10 * ds)
 
         image_pl = cv2.polylines(np.float32(image_pl),
-                                 [pl.astype(int).reshape((-1, 1, 2))], False, col, 7 * ds)
+                                 [pl.astype(int).reshape((-1, 1, 2))], False,
+                                 col, 7 * ds)
 
         # tip if mature
         if leaf['mature']:
@@ -319,12 +447,15 @@ def rgb_and_polylines(image, leaves_pl, leaves_info, metainfo):
 
         # rank number
         pos = (int(pl[-1][0]), int(pl[-1][1]))
-        image_pl = cv2.putText(image_pl, str(leaf['rank']), pos, cv2.FONT_HERSHEY_SIMPLEX,
+        image_pl = cv2.putText(image_pl, str(leaf['rank']), pos,
+                               cv2.FONT_HERSHEY_SIMPLEX,
                                3, (0, 0, 0), 4, cv2.LINE_AA)
 
     # write date
     if metainfo is not None:
-        text = 'plantid {} / task {} ({})'.format(metainfo.pot, metainfo.task, metainfo.daydate)
-        cv2.putText(image_pl, text, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2.5, (0, 0, 0), 10, cv2.LINE_AA)
+        text = 'plantid {} / task {} ({})'.format(metainfo.pot, metainfo.task,
+                                                  metainfo.daydate)
+        cv2.putText(image_pl, text, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2.5,
+                    (0, 0, 0), 10, cv2.LINE_AA)
     image_pl = image_pl.astype(np.uint8)
     return image_pl
