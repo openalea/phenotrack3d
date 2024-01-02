@@ -21,5 +21,6 @@ before_script:
 
 test:
   script:
+    - cd ../
     - pip install .
     - pytest .
