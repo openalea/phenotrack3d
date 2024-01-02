@@ -15,6 +15,7 @@ before_script:
   - pip install virtualenv
   - virtualenv venv
   - source venv/bin/activate
+  - apt-get update && apt-get install libgl1
   - pip install skan==0.10 pytest numpy matplotlib setuptools cython numpy numba scipy scikit-image scikit-learn networkx==2.5 opencv-python-headless matplotlib vtk pytest
   - git clone https://github.com/openalea/phenomenal
   - cd phenomenal; pip install .
