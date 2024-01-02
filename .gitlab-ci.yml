@@ -15,10 +15,14 @@ before_script:
   - pip install virtualenv
   - virtualenv venv
   - source venv/bin/activate
+  - pip install skan==0.10 pytest numpy matplotlib setuptools cython numpy numba scipy scikit-image scikit-learn networkx opencv matplotlib vtk pytest
+
+phenomenal:
+  - git clone https://github.com/openalea/phenomenal
+  - cd phenomenal; pip install .
 
 test:
   script:
-    - pip install skan==0.10 pytest numpy scikit-image matplotlib scipy setuptools
     - pip install .
     - pytest .
 
