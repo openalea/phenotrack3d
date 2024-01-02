@@ -24,4 +24,4 @@ test:
   script:
     - cd ../
     - pip install .
-    - pytest .
+    - pytest ./test
