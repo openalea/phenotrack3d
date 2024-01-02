@@ -18,7 +18,7 @@ before_script:
 
 test:
   script:
-    - pip install skan==0.10 pytest numpy skimage matplotlib scipy setuptools
+    - pip install skan==0.10 pytest numpy scikit-image matplotlib scipy setuptools
     - pip install .
     - pytest .
 
