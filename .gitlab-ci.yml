@@ -18,8 +18,9 @@ before_script:
   - pip install skan==0.10 pytest numpy matplotlib setuptools cython numpy numba scipy scikit-image scikit-learn networkx opencv matplotlib vtk pytest
 
 phenomenal:
-  - git clone https://github.com/openalea/phenomenal
-  - cd phenomenal; pip install .
+  script:
+    - git clone https://github.com/openalea/phenomenal
+    - cd phenomenal; pip install .
 
 test:
   script:
