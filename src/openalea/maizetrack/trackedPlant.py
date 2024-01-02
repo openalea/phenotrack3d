@@ -135,6 +135,7 @@ class TrackedPlant:
         """
 
         times = [seg['time'] for seg in segmentation_time_series]
+        times = sorted(times)
 
         # verify temporal order of the time-series
         if times != sorted(times):

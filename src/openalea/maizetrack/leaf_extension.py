@@ -14,9 +14,7 @@ import numpy as np
 
 from skimage.morphology import skeletonize
 from scipy.spatial.distance import directed_hausdorff
-
-from skan import skeleton_to_csgraph, Skeleton, summarize  # skan<=0.9
-
+from skan.csr import skeleton_to_csgraph, Skeleton, summarize  # skan<=0.9
 from openalea.maizetrack.polyline_utils import polyline_length
 
 
@@ -55,7 +53,7 @@ def skeleton_branches(image, n_kernel=15, min_length=30):
     branches_endpoint = branches_endpoint[branches_endpoint['branch-distance'] > min_length]
 
     # converting branches to polylines
-    _, coordinates, _ = skeleton_to_csgraph(skeleton)
+    _, coordinates = skeleton_to_csgraph(skeleton)
     node_ids = list(branches['node-id-src']) + list(branches['node-id-dst'])
     polylines = []
     for irow, row in branches_endpoint.iterrows():

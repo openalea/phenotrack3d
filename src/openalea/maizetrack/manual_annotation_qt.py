@@ -1,23 +1,21 @@
 import os
+import threading
 
 import cv2
 import numpy as np
+import openalea.phenomenal.object.voxelSegmentation as phm_seg
 from PySide6 import QtWidgets
-from PySide6.QtCore import Qt, QPoint, QSize, QThread
+from PySide6.QtCore import Qt, QPoint, QSize
 from PySide6.QtGui import QPixmap, QScreen, QAction, QIcon, QImage
 from PySide6.QtWidgets import QPushButton, QVBoxLayout, QLabel, QScrollArea, \
     QMainWindow, QDockWidget, QStatusBar, \
     QWidget, QApplication, QMenuBar, QMenu, QGroupBox, QGridLayout, QFileDialog, \
-    QLineEdit, QMessageBox
+    QMessageBox, QSpinBox
 from openalea.phenomenal.calibration import Calibration
 
+from openalea.maizetrack.display import PALETTE
 from openalea.maizetrack.phenomenal_coupling import phm_to_phenotrack_input
 from openalea.maizetrack.trackedPlant import TrackedPlant
-
-from openalea.maizetrack.display import PALETTE
-import openalea.phenomenal.object.voxelSegmentation as phm_seg
-import threading
-import asyncio
 
 
 def _image(annot, task, angle):
@@ -189,7 +187,7 @@ class DockAnnotation(QDockWidget):
         self.contentLayout.addWidget(groupBoxSelection)
         self.selectionLayout = QGridLayout(groupBoxSelection)
         self.selectedLabel = QLabel("Selected:", self)
-        self.selectedLineEdit = QLineEdit(self)
+        self.selectedSpinBox = QSpinBox(self)
 
         self.setupButtonSignals()
         self.addWidgets()
@@ -204,10 +202,12 @@ class DockAnnotation(QDockWidget):
         self.plusOneButton.clicked.connect(
             lambda: self.changeRank(amount=1, increment=True))
         self.minusOneButton.clicked.connect(
-            lambda: self.changeRank(amount=1, increment=True))
+            lambda: self.changeRank(amount=1, increment=False))
 
         self.rTen.clicked.connect(lambda: self.setRank(amount=10))
         self.rZero.clicked.connect(lambda: self.setRank(amount=0))
+        self.selectedSpinBox.valueChanged.connect(
+            lambda: self.changeSelection())
 
     def addWidgets(self):
         self.paramsLayout.addWidget(self.backButton, 0, 1, 1, 1)
@@ -222,7 +222,7 @@ class DockAnnotation(QDockWidget):
         self.paramsLayout.addWidget(self.cameraButton, 0, 1, 7, 2)
 
         self.selectionLayout.addWidget(self.selectedLabel, 0, 1, 1, 1)
-        self.selectionLayout.addWidget(self.selectedLineEdit, 0, 2, 1, 1)
+        self.selectionLayout.addWidget(self.selectedSpinBox, 0, 2, 1, 1)
 
     def switch_cam(self):
         parent = self.parent()
@@ -261,22 +261,26 @@ class DockAnnotation(QDockWidget):
         selected_leaf = \
             parent.annot[parent.tasks[parent.i_task]]['leaves_info'][
                 parent.i_selected]
-        if increment:
+        if increment and parent.selected:
             selected_leaf['rank'] += amount
-        else:
+        elif not increment and parent.selected:
             selected_leaf['rank'] -= amount
         parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task],
                                   parent.angles[parent.i_angle]), False)
 
     def setRank(self, amount):
         parent = self.parent()
-        selected_leaf = \
-            parent.annot[parent.tasks[parent.i_task]]['leaves_info'][
-                parent.i_selected]
+        if parent.selected:
+            selected_leaf = \
+                parent.annot[parent.tasks[parent.i_task]]['leaves_info'][
+                    parent.i_selected]
 
-        selected_leaf['rank'] = amount
-        parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task],
-                                  parent.angles[parent.i_angle]), False)
+            selected_leaf['rank'] = amount
+            parent.changeImage(_image(parent.annot, parent.tasks[parent.i_task],
+                                      parent.angles[parent.i_angle]), False)
+
+    def changeSelection(self):
+        print(self.selectedSpinBox.value())
 
 
 class Window(QMainWindow):
@@ -361,6 +365,7 @@ class Window(QMainWindow):
         self.i_angle = i_angle
 
     def startupThread(self, datadir):
+        global ranks
         timestamps = [int(t) for t in sorted(os.listdir(datadir + '/images'))]
 
         phm_segs = []
@@ -448,14 +453,14 @@ def rgb_and_polylines(image, leaves_pl, leaves_info, metainfo):
         # rank number
         pos = (int(pl[-1][0]), int(pl[-1][1]))
         image_pl = cv2.putText(image_pl, str(leaf['rank']), pos,
-                               cv2.FONT_HERSHEY_SIMPLEX,
-                               3, (0, 0, 0), 4, cv2.LINE_AA)
+                               cv2.FONT_HERSHEY_TRIPLEX,
+                               3, (64, 64, 64), 4, cv2.LINE_AA)
 
     # write date
     if metainfo is not None:
         text = 'plantid {} / task {} ({})'.format(metainfo.pot, metainfo.task,
                                                   metainfo.daydate)
-        cv2.putText(image_pl, text, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2.5,
+        cv2.putText(image_pl, text, (100, 100), cv2.FONT_HERSHEY_TRIPLEX, 2.5,
                     (0, 0, 0), 10, cv2.LINE_AA)
     image_pl = image_pl.astype(np.uint8)
     return image_pl
