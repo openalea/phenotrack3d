@@ -18,7 +18,7 @@ See LICENSE file for details.
 
 install dependencies with conda:
 
-	conda create -n phenotrack -c conda-forge -c openalea3 openalea.phenomenal skan=0.9
+	conda create -n phenotrack -c conda-forge -c openalea3 openalea.phenomenal skan=0.10 pytest numpy skimage
 	conda activate phenotrack
 
 Clone repo and run setup
