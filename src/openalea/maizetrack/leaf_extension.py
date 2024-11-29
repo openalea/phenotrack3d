@@ -14,8 +14,8 @@ import numpy as np
 
 from skimage.morphology import skeletonize
 from scipy.spatial.distance import directed_hausdorff
-
-from skan import skeleton_to_csgraph, Skeleton, summarize  # skan<=0.9
+from skan.csr import skeleton_to_csgraph
+from skan import Skeleton, summarize  # skan<=0.9
 
 from openalea.maizetrack.polyline_utils import polyline_length
 

@@ -5,7 +5,7 @@ import numpy as np
 from openalea.maizetrack.leaf_extension import skeleton_branches, compute_extension, leaf_extension
 
 import openalea.phenomenal.object.voxelSegmentation as phm_seg
-from openalea.phenomenal.calibration import Calibration
+from openalea.phenomenal.calibration import CalibrationSolver
 
 datadir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "./data")
 
@@ -48,7 +48,7 @@ def test_full_leaf_extension_phenomenal():
 
     assert all(['pm_length_extended' not in l.info for l in seg.get_leafs()])
 
-    calibration = Calibration.load(datadir + '/calibration.json')
+    calibration = CalibrationSolver.load(datadir + '/calibration.json')
     projections = {angle: calibration.get_projection(id_camera='side', rotation=angle, world_frame='pot')
                    for angle in angles}
 

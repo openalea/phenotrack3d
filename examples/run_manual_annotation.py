@@ -7,7 +7,7 @@ from openalea.maizetrack.manual_annotation import annotate
 from openalea.maizetrack.phenomenal_coupling import phm_to_phenotrack_input
 from openalea.maizetrack.trackedPlant import TrackedPlant
 
-from openalea.phenomenal.calibration import Calibration
+from openalea.phenomenal.calibration import CalibrationSolver
 
 from datadir import datadir
 
@@ -19,7 +19,7 @@ if __name__ == '__main__':
     for timestamp in timestamps:
         phm_segs.append(phm_seg.VoxelSegmentation.read_from_json_gz(datadir + f'/3d_time_series/{timestamp}.gz'))
 
-    calibration = Calibration.load(datadir + f'/phm_calibration/calibration.json')
+    calibration = CalibrationSolver.load(datadir + f'/phm_calibration/calibration.json')
 
     phenotrack_segs, _ = phm_to_phenotrack_input(phm_segs, timestamps)
     trackedplant = TrackedPlant.load(phenotrack_segs)  # useful here for polylines simplification
