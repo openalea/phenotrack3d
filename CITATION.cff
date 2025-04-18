@@ -1,0 +1,51 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Daviet"
+  given-names: "Benoit"
+  orcid: "https://orcid.org/0000-0003-2866-8515"
+- family-names: "Fernandez"
+  given-names: "Romain"
+  orcid: "https://orcid.org/0000-0003-3670-044X"
+- family-names: "Cabrera-Bosquet"
+  given-names: "Llorenç"
+  orcid: "https://orcid.org/0000-0002-2147-2846"
+- family-names: "Pradal"
+  given-names: "Christophe"
+  orcid: "https://orcid.org/0000-0002-2555-761X"
+- family-names: "Fournier"
+  given-names: "Christian"
+  orcid: "https://orcid.org/0000-0001-7098-8278"
+
+title: "PhenoTrack3D: an automatic high-throughput phenotyping pipeline to track maize organs over time"
+version: 0.1.4
+date-released: 2023-03-09
+url: "https://github.com/openalea/phenotrack3d"
+
+preferred-citation:
+    type: article
+    authors:
+    - family-names: "Daviet"
+      given-names: "Benoit"
+      orcid: "https://orcid.org/0000-0003-2866-8515"
+    - family-names: "Fernandez"
+      given-names: "Romain"
+      orcid: "https://orcid.org/0000-0003-3670-044X"
+	- family-names: "Cabrera-Bosquet"
+      given-names: "Llorenç"
+      orcid: "https://orcid.org/0000-0002-2147-2846"
+    - family-names: "Pradal"
+      given-names: "Christophe"
+      orcid: "https://orcid.org/0000-0002-2555-761X"
+	- family-names: "Fournier"
+      given-names: "Christian"
+      orcid: "https://orcid.org/0000-0001-7098-8278"
+
+    title: "PhenoTrack3D: an automatic high-throughput phenotyping pipeline to track maize organs over time"
+    doi: "10.1186/s13007-022-00961-4"
+    journal: "Plant Methods"
+    volume: '18'
+    pages: '130'
+    year: 2022
+    url: "https://plantmethods.biomedcentral.com/articles/10.1186/s13007-022-00961-4"
+
