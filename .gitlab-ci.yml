@@ -1,0 +1,27 @@
+image: python:3.9
+
+# Change pip's cache directory to be inside the project directory since we can
+# only cache local items.
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+# https://pip.pypa.io/en/stable/topics/caching/
+cache:
+  paths:
+    - .cache/pip
+
+before_script:
+  - python --version ; pip --version  # For debugging
+  - pip install virtualenv
+  - virtualenv venv
+  - source venv/bin/activate
+  - apt-get update && apt-get install libgl1 -y
+  - pip install skan==0.10 pytest numpy matplotlib setuptools cython numpy numba scipy scikit-image scikit-learn networkx==2.5 opencv-python-headless matplotlib vtk pytest
+  - git clone https://github.com/openalea/phenomenal
+  - cd phenomenal; pip install .
+
+test:
+  script:
+    - cd ../
+    - pip install .
+    - pytest ./test
