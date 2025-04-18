@@ -29,7 +29,7 @@ package_dir = dict([('', pkg_root_dir)] +
 
 setup(
     name="openalea.maizetrack",
-    version="0.1.3",
+    version="0.1.4",
     description="",
     long_description="",
 
